@@ -9,6 +9,7 @@ enum AppSettings {
             "themeMode": "system",
             "showPercentages": true,
             "textColor": "white",
+            "barOrientation": "vertical",
             "warnThreshold": 80.0,
             "errorThreshold": 90.0,
             "bar1Field": "five_hour",
@@ -51,6 +52,10 @@ enum AppSettings {
 
     static var bar2Field: String {
         get { UserDefaults.standard.string(forKey: "bar2Field") ?? "seven_day" }
+    }
+
+    static var barOrientation: String {
+        get { UserDefaults.standard.string(forKey: "barOrientation") ?? "vertical" }
     }
 
     static let barFieldDisplayNames: [String: String] = [

@@ -25,6 +25,7 @@ enum UsageAPI {
         let data: Data
         let response: URLResponse
         do {
+            request.httpMethod = "GET"
             (data, response) = try await URLSession.shared.data(for: request)
         } catch {
             throw APIError.network(error.localizedDescription)
@@ -33,7 +34,9 @@ enum UsageAPI {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.network("invalid response")
         }
-        switch http.statusCode {
+        let code = http.statusCode
+        RequestLog.write("\(url.path) -> \(code)")
+        switch code {
         case 200..<300:
             break
         case 401, 403:
@@ -41,9 +44,9 @@ enum UsageAPI {
         case 429:
             throw APIError.rateLimited
         case 500..<600:
-            throw APIError.server(http.statusCode)
+            throw APIError.server(code)
         default:
-            throw APIError.http(http.statusCode)
+            throw APIError.http(code)
         }
 
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {

@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage("errorThreshold") private var errorThreshold: Double = 90
     @AppStorage("bar1Field") private var bar1Field: String = "five_hour"
     @AppStorage("bar2Field") private var bar2Field: String = "seven_day"
+    @AppStorage("barOrientation") private var barOrientation: String = "vertical"
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
 
     var body: some View {
@@ -42,6 +43,10 @@ struct SettingsView: View {
                     ForEach(fields, id: \.self) { field in
                         Text(AppSettings.displayName(for: field)).tag(field)
                     }
+                }
+                Picker("Bar orientation", selection: $barOrientation) {
+                    Text("Vertical").tag("vertical")
+                    Text("Horizontal").tag("horizontal")
                 }
                 Toggle("Show percentages on bars", isOn: $showPercentages)
                 if showPercentages {

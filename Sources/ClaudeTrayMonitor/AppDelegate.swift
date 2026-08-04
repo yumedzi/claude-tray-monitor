@@ -52,8 +52,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         statusItem = item
         statusView = view
+        updateStatusItemWidth()
         applyThemeOverride()
         storeDidChange()
+    }
+
+    private func updateStatusItemWidth() {
+        guard let statusItem else { return }
+        let show = AppSettings.showPercentages
+        let horizontal = AppSettings.barOrientation == "horizontal"
+        let width: CGFloat
+        if show {
+            width = horizontal ? 28 : 30
+        } else {
+            width = horizontal ? 20 : 14
+        }
+        statusItem.length = width
     }
 
     private func setupPanel() {
@@ -130,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             lastInterval = interval
             poller?.reschedule(intervalMinutes: interval)
         }
+        updateStatusItemWidth()
         applyThemeOverride()
         storeDidChange()
     }

@@ -27,63 +27,161 @@ final class StatusItemView: NSView {
         let snapshot = store?.snapshot ?? UsageSnapshot.empty
 
         if pressed {
-            let overlay = NSBezierPath(roundedRect: bounds, xRadius: 4, yRadius: 4)
+            let overlay = NSBezierPath(roundedRect: bounds, xRadius: 5, yRadius: 5)
             NSColor.labelColor.withAlphaComponent(0.1).setFill()
             overlay.fill()
         }
 
-        let showPercentages = AppSettings.showPercentages
-        let labelHeight: CGFloat = showPercentages ? 9 : 0
-        let labelFontSize: CGFloat = 7
-        let barWidth: CGFloat = 7
-        let gap: CGFloat = 6
-        let totalBarsWidth = barWidth * 2 + gap
-        let sideMargin = max(2, (bounds.width - totalBarsWidth) / 2)
-        let barTop = labelHeight + 1
-        let barBottom = bounds.height - 1.5
-        let barHeight = barBottom - barTop
-
-        func drawBar(at x: CGFloat, percent: Double?, label: String) {
-            let trackRect = NSRect(x: x, y: barTop, width: barWidth, height: barHeight)
-            let track = NSBezierPath(roundedRect: trackRect, xRadius: barWidth / 2, yRadius: barWidth / 2)
-            Theme.trackColor.setFill()
-            track.fill()
-
-            if let percent {
-                let fraction = CGFloat(max(0, min(1, percent / 100)))
-                let fillHeight = fraction * barHeight
-                if fillHeight > 0.5 {
-                    let fillRect = NSRect(x: x, y: barBottom - fillHeight, width: barWidth, height: fillHeight)
-                    let fill = NSBezierPath(roundedRect: fillRect, xRadius: barWidth / 2, yRadius: barWidth / 2)
-                    Theme.fillColor(for: percent, stale: snapshot.stale).setFill()
-                    fill.fill()
-                }
-            }
-
-            if showPercentages {
-                let attributes: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.monospacedDigitSystemFont(ofSize: labelFontSize, weight: .medium),
-                    .foregroundColor: Theme.textColor,
-                ]
-                let attributed = NSAttributedString(string: label, attributes: attributes)
-                let textSize = attributed.size()
-                attributed.draw(at: NSPoint(x: x + (barWidth - textSize.width) / 2, y: 1))
-            }
-        }
-
-        let percent1 = snapshot.windows[AppSettings.bar1Field]?.percent
-        let percent2 = snapshot.windows[AppSettings.bar2Field]?.percent
-
+        let field1 = AppSettings.bar1Field
+        let field2 = AppSettings.bar2Field
         let unavailable = snapshot.billingMode == .api || snapshot.tokenMissing
-        let label1 = unavailable || percent1 == nil ? "–" : formatPercent(percent1!)
-        let label2 = unavailable || percent2 == nil ? "–" : formatPercent(percent2!)
+        let p1 = unavailable ? nil : snapshot.windows[field1]?.percent
+        let p2 = unavailable ? nil : snapshot.windows[field2]?.percent
+        let n1 = p1 == nil ? "–" : formatNumber(p1!)
+        let n2 = p2 == nil ? "–" : formatNumber(p2!)
 
-        drawBar(at: sideMargin, percent: unavailable ? nil : percent1, label: label1)
-        drawBar(at: sideMargin + barWidth + gap, percent: unavailable ? nil : percent2, label: label2)
+        if AppSettings.barOrientation == "horizontal" {
+            drawHorizontal(f1: field1, p1: p1, n1: n1, f2: field2, p2: p2, n2: n2, stale: snapshot.stale)
+        } else {
+            drawVertical(f1: field1, p1: p1, n1: n1, f2: field2, p2: p2, n2: n2, stale: snapshot.stale)
+        }
     }
 
-    private func formatPercent(_ value: Double) -> String {
+    // MARK: - Vertical mode: bars close together (||); numbers top corners, markers bottom corners.
+
+    private func drawVertical(f1: String, p1: Double?, n1: String, f2: String, p2: Double?, n2: String, stale: Bool) {
+        let show = AppSettings.showPercentages
+        let barW: CGFloat = 4
+        let pairGap: CGFloat = 2
+        let total = barW * 2 + pairGap
+        let x0 = (bounds.width - total) / 2
+
+        let cxL: CGFloat = x0 / 2
+        let cxR: CGFloat = bounds.width - x0 / 2
+        let topY: CGFloat = 1
+        let botY = bounds.height - 1 - TextH
+
+        let pcts = [p1, p2]
+        let values = [n1, n2]
+        let markers = [marker(for: f1), marker(for: f2)]
+
+        // without labels the bars use the full height; with labels they leave corner room
+        let barTop: CGFloat = show ? 4 : 1
+        let barH: CGFloat = show ? 15 : 20
+
+        drawVerticalBar(x: x0, y: barTop, width: barW, height: barH, percent: pcts[0], stale: stale)
+        drawVerticalBar(x: x0 + barW + pairGap, y: barTop, width: barW, height: barH, percent: pcts[1], stale: stale)
+        if show {
+            drawText(values[0], centeredX: cxL, y: topY)
+            drawText(values[1], centeredX: cxR, y: topY)
+            drawText(markers[0], centeredX: cxL, y: botY)
+            drawText(markers[1], centeredX: cxR, y: botY)
+        }
+    }
+
+    // MARK: - Horizontal mode: 4 rows — labels top/bottom, two thin bars between, values at right edge.
+
+    private func drawHorizontal(f1: String, p1: Double?, n1: String, f2: String, p2: Double?, n2: String, stale: Bool) {
+        let show = AppSettings.showPercentages
+        let leftX: CGFloat = 3
+        let barRight = bounds.width - 3
+        let barWidth = barRight - leftX
+
+        let topY: CGFloat = 0
+        let botY = bounds.height - 1 - TextH
+        let th: CGFloat = 2
+
+        // bars occupy the fixed middle rows (1px gap between); never resized by the % toggle
+        drawHorizontalBar(x: leftX, y: 8, width: barWidth, thickness: th, percent: p1, stale: stale)
+        drawHorizontalBar(x: leftX, y: 11, width: barWidth, thickness: th, percent: p2, stale: stale)
+
+        if show {
+            let m1 = marker(for: f1)
+            let m2 = marker(for: f2)
+            drawText(m1, atX: leftX, y: topY)
+            drawTextRight(n1, rightX: barRight, y: topY)
+            drawText(m2, atX: leftX, y: botY)
+            drawTextRight(n2, rightX: barRight, y: botY)
+        }
+    }
+
+    // MARK: - Drawing primitives
+
+    private func drawVerticalBar(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, percent: Double?, stale: Bool) {
+        guard width > 0, height > 0 else { return }
+        let track = NSBezierPath(roundedRect: NSRect(x: x, y: y, width: width, height: height), xRadius: width / 2, yRadius: width / 2)
+        Theme.trackColor.setFill()
+        track.fill()
+        guard let percent else { return }
+        let fillHeight = CGFloat(max(0, min(1, percent / 100))) * height
+        if fillHeight > 0.7 {
+            let fillRect = NSRect(x: x, y: y + height - fillHeight, width: width, height: fillHeight)
+            let fill = NSBezierPath(roundedRect: fillRect, xRadius: width / 2, yRadius: width / 2)
+            Theme.fillColor(for: percent, stale: stale).setFill()
+            fill.fill()
+        }
+    }
+
+    private func drawHorizontalBar(x: CGFloat, y: CGFloat, width: CGFloat, thickness: CGFloat, percent: Double?, stale: Bool) {
+        guard width > 0, thickness > 0 else { return }
+        let radius = thickness / 2
+        let track = NSBezierPath(roundedRect: NSRect(x: x, y: y, width: width, height: thickness), xRadius: radius, yRadius: radius)
+        Theme.trackColor.setFill()
+        track.fill()
+        guard let percent else { return }
+        let fillWidth = CGFloat(max(0, min(1, percent / 100))) * width
+        if fillWidth > 0.7 {
+            let fillRect = NSRect(x: x, y: y, width: fillWidth, height: thickness)
+            let fill = NSBezierPath(roundedRect: fillRect, xRadius: radius, yRadius: radius)
+            Theme.fillColor(for: percent, stale: stale).setFill()
+            fill.fill()
+        }
+    }
+
+    private func drawText(_ string: String, centeredX: CGFloat, y: CGFloat) {
+        let attr = NSAttributedString(string: string, attributes: textAttributes())
+        let size = attr.size()
+        attr.draw(at: NSPoint(x: centeredX - size.width / 2, y: y))
+    }
+
+    private func drawText(_ string: String, atX: CGFloat, y: CGFloat) {
+        NSAttributedString(string: string, attributes: textAttributes()).draw(at: NSPoint(x: atX, y: y))
+    }
+
+    private func drawTextRight(_ string: String, rightX: CGFloat, y: CGFloat) {
+        let attr = NSAttributedString(string: string, attributes: textAttributes())
+        attr.draw(at: NSPoint(x: rightX - attr.size().width, y: y))
+    }
+
+    private func textAttributes() -> [NSAttributedString.Key: Any] {
+        [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 6.5, weight: .medium),
+            .foregroundColor: Theme.textColor,
+        ]
+    }
+
+    private var TextH: CGFloat {
+        NSAttributedString(string: "0", attributes: textAttributes()).size().height
+    }
+
+    private func textWidth(_ string: String) -> CGFloat {
+        NSAttributedString(string: string, attributes: textAttributes()).size().width
+    }
+
+    private func yCenter(forTextH textH: CGFloat) -> CGFloat {
+        (bounds.height - textH) / 2
+    }
+
+    private func formatNumber(_ value: Double) -> String {
         "\(Int(min(value, 99).rounded()))"
+    }
+
+    private func marker(for field: String) -> String {
+        switch field {
+        case "five_hour": return "s"
+        case "seven_day": return "w"
+        default: return String(field.replacingOccurrences(of: "_", with: " ").prefix(1)).uppercased()
+        }
     }
 
     override func viewDidChangeEffectiveAppearance() {
