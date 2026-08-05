@@ -69,11 +69,16 @@ final class StatusItemView: NSView {
         drawVerticalBar(x: x0, y: 1, width: barW, height: bounds.height - 2, percent: pcts[0], stale: stale)
         drawVerticalBar(x: x0 + barW + pairGap, y: 1, width: barW, height: bounds.height - 2, percent: pcts[1], stale: stale)
         if show {
-            drawText(values[0], centeredX: cxL, y: topY)
-            drawText(values[1], centeredX: cxR, y: topY)
             if AppSettings.showLabels {
+                drawText(values[0], centeredX: cxL, y: topY)
+                drawText(values[1], centeredX: cxR, y: topY)
                 drawText(markers[0], centeredX: cxL, y: botY)
                 drawText(markers[1], centeredX: cxR, y: botY)
+            } else {
+                // no labels: center the values vertically
+                let valueY = (bounds.height - TextH) / 2
+                drawText(values[0], centeredX: cxL, y: valueY)
+                drawText(values[1], centeredX: cxR, y: valueY)
             }
         }
     }
@@ -97,11 +102,14 @@ final class StatusItemView: NSView {
         if show {
             let m1 = marker(for: f1)
             let m2 = marker(for: f2)
-            drawTextRight(n1, rightX: rightX, y: topY)
-            drawTextRight(n2, rightX: rightX, y: botY)
             if AppSettings.showLabels {
+                drawTextRight(n1, rightX: rightX, y: topY)
+                drawTextRight(n2, rightX: rightX, y: botY)
                 drawText(m1, atX: leftX, y: topY)
                 drawText(m2, atX: leftX, y: botY)
+            } else {
+                drawText(n1, centeredX: bounds.width / 2, y: topY)
+                drawText(n2, centeredX: bounds.width / 2, y: botY)
             }
         }
     }

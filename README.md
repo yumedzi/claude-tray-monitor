@@ -4,6 +4,10 @@ A native macOS menu-bar app that shows your Claude rate limits at a glance —
 two slim vertical bars with your current usage, refreshed on a gentle,
 configurable schedule.
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="Claude Tray Monitor screenshot" width="720">
+</p>
+
 Inspired by [_usage-monitor-for-claude_](https://github.com/jens-duttke/usage-monitor-for-claude)
 (Windows) and informed by the API/credential logic of the author's VS Code
 extension _claude-context-monitor_.
