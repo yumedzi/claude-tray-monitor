@@ -11,7 +11,7 @@ enum APIError: Error, Sendable {
 enum UsageAPI {
     static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     static let profileURL = URL(string: "https://api.anthropic.com/api/oauth/profile")!
-    static let userAgent = "claude-tray-monitor/0.1.0"
+    static let userAgent = "claude-tray-monitor/0.2.0"
 
     static func getJSON(_ url: URL, token: String) async throws -> [String: Any] {
         var request = URLRequest(url: url)

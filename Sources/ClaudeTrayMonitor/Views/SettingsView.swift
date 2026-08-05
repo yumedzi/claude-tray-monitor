@@ -8,7 +8,7 @@ struct SettingsView: View {
     @AppStorage("refreshOnClick") private var refreshOnClick: Bool = true
     @AppStorage("themeMode") private var themeMode: String = "system"
     @AppStorage("showPercentages") private var showPercentages: Bool = true
-    @AppStorage("textColor") private var textColor: String = "white"
+    @AppStorage("showLabels") private var showLabels: Bool = true
     @AppStorage("warnThreshold") private var warnThreshold: Double = 80
     @AppStorage("errorThreshold") private var errorThreshold: Double = 90
     @AppStorage("bar1Field") private var bar1Field: String = "five_hour"
@@ -50,11 +50,7 @@ struct SettingsView: View {
                 }
                 Toggle("Show percentages on bars", isOn: $showPercentages)
                 if showPercentages {
-                    Picker("Percent label color", selection: $textColor) {
-                        Text("White").tag("white")
-                        Text("Black").tag("black")
-                        Text("Follow system").tag("system")
-                    }
+                    Toggle("Show labels (s/w) on bars", isOn: $showLabels)
                 }
             }
 
@@ -99,7 +95,7 @@ struct SettingsView: View {
             Section {
                 HStack {
                     Spacer()
-                    Text("Claude Tray Monitor 0.1.0 — (c) Viktor Moyseyenko, 2026")
+                    Text("Claude Tray Monitor 0.2.0 — (c) Viktor Moyseyenko, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

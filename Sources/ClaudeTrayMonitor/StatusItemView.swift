@@ -65,17 +65,16 @@ final class StatusItemView: NSView {
         let values = [n1, n2]
         let markers = [marker(for: f1), marker(for: f2)]
 
-        // without labels the bars use the full height; with labels they leave corner room
-        let barTop: CGFloat = show ? 4 : 1
-        let barH: CGFloat = show ? 15 : 20
-
-        drawVerticalBar(x: x0, y: barTop, width: barW, height: barH, percent: pcts[0], stale: stale)
-        drawVerticalBar(x: x0 + barW + pairGap, y: barTop, width: barW, height: barH, percent: pcts[1], stale: stale)
+        // corner labels sit outside the bars' x-range, so bars can span nearly full height
+        drawVerticalBar(x: x0, y: 1, width: barW, height: bounds.height - 2, percent: pcts[0], stale: stale)
+        drawVerticalBar(x: x0 + barW + pairGap, y: 1, width: barW, height: bounds.height - 2, percent: pcts[1], stale: stale)
         if show {
             drawText(values[0], centeredX: cxL, y: topY)
             drawText(values[1], centeredX: cxR, y: topY)
-            drawText(markers[0], centeredX: cxL, y: botY)
-            drawText(markers[1], centeredX: cxR, y: botY)
+            if AppSettings.showLabels {
+                drawText(markers[0], centeredX: cxL, y: botY)
+                drawText(markers[1], centeredX: cxR, y: botY)
+            }
         }
     }
 
@@ -84,24 +83,26 @@ final class StatusItemView: NSView {
     private func drawHorizontal(f1: String, p1: Double?, n1: String, f2: String, p2: Double?, n2: String, stale: Bool) {
         let show = AppSettings.showPercentages
         let leftX: CGFloat = 3
-        let barRight = bounds.width - 3
-        let barWidth = barRight - leftX
+        let rightX = bounds.width - 3
+        let barWidth = rightX - leftX
 
+        // 4 separate rows: labels (top/bottom), two full-width bars (middle)
         let topY: CGFloat = 0
-        let botY = bounds.height - 1 - TextH
-        let th: CGFloat = 2
+        let botY: CGFloat = 14
+        let th: CGFloat = 2.5
 
-        // bars occupy the fixed middle rows (1px gap between); never resized by the % toggle
         drawHorizontalBar(x: leftX, y: 8, width: barWidth, thickness: th, percent: p1, stale: stale)
-        drawHorizontalBar(x: leftX, y: 11, width: barWidth, thickness: th, percent: p2, stale: stale)
+        drawHorizontalBar(x: leftX, y: 11.5, width: barWidth, thickness: th, percent: p2, stale: stale)
 
         if show {
             let m1 = marker(for: f1)
             let m2 = marker(for: f2)
-            drawText(m1, atX: leftX, y: topY)
-            drawTextRight(n1, rightX: barRight, y: topY)
-            drawText(m2, atX: leftX, y: botY)
-            drawTextRight(n2, rightX: barRight, y: botY)
+            drawTextRight(n1, rightX: rightX, y: topY)
+            drawTextRight(n2, rightX: rightX, y: botY)
+            if AppSettings.showLabels {
+                drawText(m1, atX: leftX, y: topY)
+                drawText(m2, atX: leftX, y: botY)
+            }
         }
     }
 
@@ -156,7 +157,7 @@ final class StatusItemView: NSView {
     private func textAttributes() -> [NSAttributedString.Key: Any] {
         [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 6.5, weight: .medium),
-            .foregroundColor: Theme.textColor,
+            .foregroundColor: Theme.textColor(for: effectiveAppearance),
         ]
     }
 

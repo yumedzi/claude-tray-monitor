@@ -33,6 +33,8 @@ final class Poller {
         lastRefreshAt = Date()
         isRefreshing = true
         defer { isRefreshing = false }
+        store.setRefreshing(true)
+        defer { store.setRefreshing(false) }
 
         RequestLog.write("refresh start (force=\(force))")
         var markStale = store.snapshot
@@ -128,7 +130,7 @@ final class Poller {
             return .rejected
         } catch APIError.rateLimited {
             RequestLog.write("rate limited 429 via \(candidate.source)")
-            return .failed("Rate limited (429)")
+            return .failed("No active Claude Code session detected\nRate limited (429)")
         } catch APIError.server(let code) {
             return .failed("Server error \(code)")
         } catch APIError.http(let code) {

@@ -8,7 +8,7 @@ enum AppSettings {
             "refreshOnClick": true,
             "themeMode": "system",
             "showPercentages": true,
-            "textColor": "white",
+            "showLabels": true,
             "barOrientation": "vertical",
             "warnThreshold": 80.0,
             "errorThreshold": 90.0,
@@ -34,8 +34,8 @@ enum AppSettings {
         get { UserDefaults.standard.bool(forKey: "showPercentages") }
     }
 
-    static var textColor: String {
-        get { UserDefaults.standard.string(forKey: "textColor") ?? "white" }
+    static var showLabels: Bool {
+        get { UserDefaults.standard.bool(forKey: "showLabels") }
     }
 
     static var warnThreshold: Double {

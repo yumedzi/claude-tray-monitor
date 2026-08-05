@@ -71,17 +71,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupPanel() {
-        let host = NSHostingView(rootView: PopoverView(store: store))
+        let host = NSHostingView(rootView: PopoverView(
+            store: store,
+            onRefresh: { [weak self] in
+                Task { @MainActor [weak self] in
+                    await self?.poller?.refresh(force: true)
+                }
+            },
+            onSettings: { [weak self] in self?.openSettings() },
+            onQuit: { [weak self] in
+                self?.closePanel()
+                NSApp.terminate(nil)
+            }
+        ))
         let effect = NSVisualEffectView()
         effect.material = .popover
         effect.state = .active
         effect.blendingMode = .behindWindow
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = 10
-        effect.layer?.masksToBounds = true
         host.autoresizingMask = [.width, .height]
         host.frame = effect.bounds
         effect.addSubview(host)
+
+        // the material of NSVisualEffectView is composited at window level, so its own
+        // layer mask won't clip it — wrap it in a plain container whose mask clips both.
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 328, height: 200))
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 10
+        container.layer?.masksToBounds = true
+        effect.autoresizingMask = [.width, .height]
+        effect.frame = container.bounds
+        container.addSubview(effect)
 
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 328, height: 200),
@@ -96,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.isFloatingPanel = true
-        panel.contentView = effect
+        panel.contentView = container
 
         panelHost = host
         self.panel = panel
@@ -202,7 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             image.isTemplate = true
             check.image = image
         }
-        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        let settings = NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(check)
         menu.addItem(settings)

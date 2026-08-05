@@ -4,11 +4,16 @@ import Combine
 @MainActor
 final class UsageStore: ObservableObject {
     @Published private(set) var snapshot = UsageSnapshot()
+    @Published private(set) var isRefreshing = false
     var onChange: (() -> Void)?
 
     func setSnapshot(_ snapshot: UsageSnapshot) {
         self.snapshot = snapshot
         onChange?()
+    }
+
+    func setRefreshing(_ refreshing: Bool) {
+        isRefreshing = refreshing
     }
 
     var orderedFields: [String] {

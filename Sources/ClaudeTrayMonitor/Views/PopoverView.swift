@@ -2,6 +2,9 @@ import SwiftUI
 
 struct PopoverView: View {
     @ObservedObject var store: UsageStore
+    var onRefresh: (() -> Void)?
+    var onSettings: (() -> Void)?
+    var onQuit: (() -> Void)?
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
@@ -21,16 +24,39 @@ struct PopoverView: View {
         HStack {
             Text(title).font(.headline)
             Spacer()
-            if store.snapshot.stale {
-                Text("STALE")
-                    .font(.caption2.bold())
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.orange.opacity(0.18))
-                    .clipShape(Capsule())
+            statusBadge
+            if store.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Button {
+                    onRefresh?()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+                .help("Refresh now")
             }
         }
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        if store.snapshot.stale {
+            badge("STALE", color: .orange)
+        } else if store.snapshot.fetchedAt != nil {
+            badge("FRESH", color: .green)
+        }
+    }
+
+    private func badge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2.bold())
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.18))
+            .clipShape(Capsule())
     }
 
     private var title: String {
@@ -86,14 +112,29 @@ struct PopoverView: View {
     }
 
     private var footer: some View {
-        HStack {
-            Text("Updated \(formattedUpdated)")
-            Spacer()
-            if let source = store.snapshot.tokenSource, !source.isEmpty {
-                Text(source).lineLimit(1).truncationMode(.middle)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Updated \(formattedUpdated)")
+                Spacer()
+                if let source = store.snapshot.tokenSource, !source.isEmpty {
+                    Text(source).lineLimit(1).truncationMode(.middle)
+                }
+            }
+            Divider()
+            HStack {
+                Button { onSettings?() } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                Spacer()
+                Button { onQuit?() } label: {
+                    Label("Exit", systemImage: "power")
+                }
             }
         }
-        .font(.caption)
+        .font(.callout)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(.secondary)
         .foregroundStyle(.secondary)
     }
 

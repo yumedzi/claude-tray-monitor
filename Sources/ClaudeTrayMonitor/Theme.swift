@@ -12,12 +12,9 @@ enum Theme {
         NSColor.labelColor.withAlphaComponent(0.18)
     }
 
-    static var textColor: NSColor {
-        switch AppSettings.textColor {
-        case "black": return .black
-        case "white": return .white
-        default: return .labelColor
-        }
+    static func textColor(for appearance: NSAppearance?) -> NSColor {
+        let isDark = appearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark ? .white : .black
     }
 
     static func appearance(for mode: String) -> NSAppearance? {
