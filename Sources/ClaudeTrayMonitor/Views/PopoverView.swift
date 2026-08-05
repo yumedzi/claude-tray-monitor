@@ -95,20 +95,28 @@ struct PopoverView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            ProgressView(value: percent, total: 100)
-                .progressViewStyle(.linear)
-                .frame(width: 110)
-                .tint(color(for: percent))
+            bar(percent: percent)
             Text("\(Int(percent.rounded()))%")
                 .font(.callout.monospacedDigit())
                 .frame(width: 38, alignment: .trailing)
         }
     }
 
+    private func bar(percent: Double) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color(nsColor: Theme.trackColor))
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(color(for: percent))
+                    .frame(width: geo.size.width * CGFloat(min(max(percent, 0), 100)) / 100)
+            }
+        }
+        .frame(width: 110, height: 6)
+    }
+
     private func color(for percent: Double) -> Color {
-        if percent >= AppSettings.errorThreshold { return .red }
-        if percent >= AppSettings.warnThreshold { return .orange }
-        return .accentColor
+        Color(nsColor: Theme.fillColor(for: percent, stale: store.snapshot.stale))
     }
 
     private var footer: some View {

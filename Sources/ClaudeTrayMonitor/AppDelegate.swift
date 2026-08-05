@@ -175,6 +175,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func storeDidChange() {
         statusView?.needsDisplay = true
         statusView?.toolTip = TooltipText.make(store.snapshot)
+        if panel?.isVisible == true {
+            schedulePanelResize()
+        }
+    }
+
+    private func schedulePanelResize() {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            self?.resizePanelToFit()
+        }
+    }
+
+    private func resizePanelToFit() {
+        guard let panel, let host = panelHost, let button = statusItem?.button else { return }
+        panel.setContentSize(host.fittingSize)
+        placePanel(by: button)
     }
 
     private func handleLeftClick() {
@@ -193,14 +209,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showPanel(from button: NSButton) {
         guard let panel, let host = panelHost, let window = button.window else { return }
-        let size = host.fittingSize
-        panel.setContentSize(size)
+        panel.setContentSize(host.fittingSize)
+        placePanel(by: button)
+        panel.orderFront(nil)
+    }
+
+    private func placePanel(by button: NSButton) {
+        guard let panel, let window = button.window else { return }
+        let size = panel.frame.size
         let buttonScreen = window.convertToScreen(button.convert(button.bounds, to: nil))
         guard let visible = window.screen?.visibleFrame else { return }
         let x = min(max(buttonScreen.midX - size.width / 2, visible.minX + 8), visible.maxX - size.width - 8)
         let y = visible.maxY - size.height - 8
         panel.setFrameOrigin(NSPoint(x: x, y: y))
-        panel.orderFront(nil)
     }
 
     private func closePanel() {
