@@ -40,12 +40,21 @@ extension _claude-context-monitor_.
 
 ## Install
 
-Download the latest `ClaudeTrayMonitor-macos.zip` from
-[Releases](https://github.com/yumedzi/claude-tray-monitor/releases), unzip, and
-move `Claude Tray Monitor.app` to your Applications folder. The release is
-ad-hoc signed; on first launch you may need to right-click the app and choose
-**Open** (or run `xattr -dr com.apple.quarantine "Claude Tray Monitor.app"`).
-To remove, simply delete the app.
+Download the latest `ClaudeTrayMonitor-macos.dmg` from
+[Releases](https://github.com/yumedzi/claude-tray-monitor/releases), open it, and
+drag **Claude Tray Monitor.app** into your Applications folder (or download the
+`ClaudeTrayMonitor-macos.zip` archive and move the app to Applications).
+
+The release is ad-hoc signed; on first launch you may need to right-click the
+app and choose **Open** (or run
+`xattr -dr com.apple.quarantine "Claude Tray Monitor.app"`). To remove, simply
+delete the app.
+
+> **Why the Gatekeeper warning?** This project is free, ad-hoc signed, and not
+> notarized — signing + notarizing so macOS trusts the app for *every* Mac
+> requires the paid $99/year Apple Developer Program and a Developer ID
+> certificate. The DMG itself requires no Apple ID, but first-time users see
+> the right-click → Open confirmation once.
 
 ## Build from source
 
@@ -53,7 +62,9 @@ To remove, simply delete the app.
 make bundle        # builds release binary and assembles the .app
 open "build/Claude Tray Monitor.app"   # or double-click it
 make run           # run in place with `swift run`
+make dmg           # produce build/ClaudeTrayMonitor-macos.dmg (installer)
 make release       # produce build/ClaudeTrayMonitor-macos.zip
+make publish       # build + upload DMG/zip to a GitHub Release (requires gh + auth)
 ```
 
 ## How it works
