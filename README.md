@@ -14,18 +14,28 @@ extension _claude-context-monitor_.
 
 ## Features
 
-- **Two vertical bars** in the menu bar (session + weekly by default) with
-  optional percentage labels — compact, color-coded, easy to read at a glance.
+- **Vertical or horizontal bars** in the menu bar — switch orientation in
+  Settings (`55 || 44` / `s || w` in vertical, two stacked bars with
+  marker + value rows in horizontal).
+- **Adaptive tray width**: the tray item shrinks to just its bars when labels
+  and percentages are hidden, freeing menu-bar space.
+- **Pick the quota windows to display** (session, weekly, weekly Sonnet / Opus /
+  Fable, and any new ones Anthropic adds) for either bar.
+- **Percentages & labels on/off**: show the numbers, and independently show the
+  `s`/`w` markers. Without labels, values center against the bars.
+- **Auto label color**: labels render black on a light menu bar, white on a
+  dark one — no manual color setting.
 - **Color-coded limits**: green / orange (warning) / red (error), with
   configurable thresholds.
 - **Follows macOS light/dark theme** automatically — or pin it to light/dark
   in Settings (a feature the original Windows app does not have).
 - **Configurable polling interval: 1–60 minutes** via a slider in the UI.
-  One network request per interval, no more.
-- **Left-click popover**: all detected quota windows (Session, Weekly, Sonnet,
-  Opus, Fable, and any new ones Anthropic adds) with reset countdowns, plan
-  label, and stale-data indicator.
-- **Right-click menu**: Check Now, Settings…, Quit.
+  One network request per interval, no more, with built-in 429 throttling.
+- **Left-click popover**: all detected quota windows with reset countdowns,
+  plan label, FRESH/STALE status badge, and an instant reload button.
+- **Popover footer** lists the last update time and credential source, with
+  **Settings** and **Exit** buttons.
+- **Right-click menu**: Check Now, Settings, Quit.
 - **Zero configuration**: uses your existing Claude Code login. On macOS the
   OAuth token is read from the Keychain (`Claude Code-credentials`), with the
   `~/.claude/.credentials.json` file as a fallback for custom config dirs.
