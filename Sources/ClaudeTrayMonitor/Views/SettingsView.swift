@@ -3,6 +3,7 @@ import ServiceManagement
 
 struct SettingsView: View {
     @ObservedObject var store: UsageStore
+    let onDataDirChange: () -> Void
 
     @AppStorage("pollIntervalMinutes") private var pollIntervalMinutes: Double = 5
     @AppStorage("refreshOnClick") private var refreshOnClick: Bool = true
@@ -14,7 +15,13 @@ struct SettingsView: View {
     @AppStorage("bar1Field") private var bar1Field: String = "five_hour"
     @AppStorage("bar2Field") private var bar2Field: String = "seven_day"
     @AppStorage("barOrientation") private var barOrientation: String = "vertical"
+    @AppStorage("desktopDataDir") private var desktopDataDir: String = ""
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
+
+    init(store: UsageStore, onDataDirChange: @escaping () -> Void = {}) {
+        self.store = store
+        self.onDataDirChange = onDataDirChange
+    }
 
     var body: some View {
         Form {
@@ -85,6 +92,22 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
 
+            Section("Claude Desktop") {
+                TextField("~/Library/Application Support/Claude-Personal", text: $desktopDataDir)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                HStack {
+                    Text(desktopDirCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Browse…") { chooseDirectory() }
+                }
+            }
+            .onChange(of: desktopDataDir) { _, _ in
+                onDataDirChange()
+            }
+
             Section {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
@@ -95,7 +118,7 @@ struct SettingsView: View {
             Section {
                 HStack {
                     Spacer()
-                    Text("Claude Tray Monitor 0.3.0 — (c) Viktor Moyseyenko, 2026")
+                    Text("Claude Tray Monitor 0.4.0 — (c) Viktor Moyseyenko, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -111,6 +134,46 @@ struct SettingsView: View {
     private var fields: [String] {
         let available = store.orderedFields
         return available.isEmpty ? ["five_hour", "seven_day"] : available
+    }
+
+    private var desktopDirCaption: String {
+        guard !desktopDataDir.isEmpty else {
+            if let resolved = DesktopSession.resolvedDirectory()?.path {
+                return "Auto-detected: \(tildize(resolved)). The desktop session cookie is read from there."
+            }
+            return "Where Claude Desktop stores its profile. Leave empty to auto-detect."
+        }
+        if let resolved = DesktopSession.resolvedDirectory()?.path, isConfiguredDir(resolved) {
+            return "Using \(tildize(resolved)). Refresh to apply."
+        }
+        return "Custom directory not found — falling back to auto-detection."
+    }
+
+    private func isConfiguredDir(_ resolved: String) -> Bool {
+        let expanded = expand(desktopDataDir)
+        return resolved == expanded
+            || resolved == (expanded as NSString).appendingPathComponent("Default")
+    }
+
+    private func expand(_ path: String) -> String {
+        (path as NSString).expandingTildeInPath
+    }
+
+    private func tildize(_ path: String) -> String {
+        let home = NSHomeDirectory()
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+    }
+
+    private func chooseDirectory() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Select"
+        panel.message = "Select the Claude Desktop profile directory (contains the Cookies file)"
+        if panel.runModal() == .OK, let url = panel.url {
+            desktopDataDir = url.path
+        }
     }
 
     private func applyLaunchAtLogin(_ enabled: Bool) {

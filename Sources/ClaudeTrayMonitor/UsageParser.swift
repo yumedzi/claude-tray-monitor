@@ -37,21 +37,10 @@ enum UsageParser {
 
     static func parseProfile(_ profile: [String: Any], tokenSubscriptionType: String?) -> String? {
         let orgType = (profile["organization"] as? [String: Any])?["organization_type"] as? String
-        let map = [
-            "claude_pro": "Pro",
-            "claude_max": "Max",
-            "claude_team": "Team",
-            "claude_enterprise": "Enterprise",
-        ]
-        if let orgType, let plan = map[orgType] { return plan }
+        if let orgType, let plan = planLabelMap[orgType] { return plan }
 
-        if let tokenSubscriptionType {
-            let lower = tokenSubscriptionType.lowercased()
-            if lower.contains("max") { return "Max" }
-            if lower.contains("pro") { return "Pro" }
-            if lower.contains("team") { return "Team" }
-            if lower.contains("enterprise") { return "Enterprise" }
-            return tokenSubscriptionType
+        if let tokenSubscriptionType, let plan = planLabel(for: tokenSubscriptionType) {
+            return plan
         }
 
         let account = profile["account"] as? [String: Any]
@@ -59,6 +48,22 @@ enum UsageParser {
         if account?["has_claude_pro"] as? Bool == true { return "Pro" }
         return nil
     }
+
+    static func planLabel(for subscriptionType: String) -> String? {
+        let lower = subscriptionType.lowercased()
+        if lower.contains("max") { return "Max" }
+        if lower.contains("pro") { return "Pro" }
+        if lower.contains("team") { return "Team" }
+        if lower.contains("enterprise") { return "Enterprise" }
+        return subscriptionType
+    }
+
+    private static let planLabelMap = [
+        "claude_pro": "Pro",
+        "claude_max": "Max",
+        "claude_team": "Team",
+        "claude_enterprise": "Enterprise",
+    ]
 
     static func formatCountdown(resetsAt: Date, now: Date) -> String {
         let totalMinutes = Int(resetsAt.timeIntervalSince(now) / 60)

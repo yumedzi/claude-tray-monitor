@@ -58,6 +58,11 @@ enum AppSettings {
         get { UserDefaults.standard.string(forKey: "barOrientation") ?? "vertical" }
     }
 
+    static var desktopDataDir: String {
+        get { UserDefaults.standard.string(forKey: "desktopDataDir") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "desktopDataDir") }
+    }
+
     static let barFieldDisplayNames: [String: String] = [
         "five_hour": "Session (5h)",
         "seven_day": "Weekly (7d)",

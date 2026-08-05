@@ -243,7 +243,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showSettings() {
         if settingsWindow == nil {
-            let hosting = NSHostingController(rootView: SettingsView(store: store))
+            let hosting = NSHostingController(rootView: SettingsView(
+                store: store,
+                onDataDirChange: { [weak self] in
+                    Task { @MainActor [weak self] in
+                        await self?.poller?.refresh(force: true)
+                    }
+                }
+            ))
             let window = NSWindow(contentViewController: hosting)
             window.title = "Claude Tray Monitor Settings"
             window.styleMask = [.titled, .closable]
