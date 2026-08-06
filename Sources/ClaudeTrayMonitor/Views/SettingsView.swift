@@ -16,11 +16,13 @@ struct SettingsView: View {
     @AppStorage("bar2Field") private var bar2Field: String = "seven_day"
     @AppStorage("barOrientation") private var barOrientation: String = "vertical"
     @AppStorage("desktopDataDir") private var desktopDataDir: String = ""
+    @State private var showCustomFolder = false
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
 
     init(store: UsageStore, onDataDirChange: @escaping () -> Void = {}) {
         self.store = store
         self.onDataDirChange = onDataDirChange
+        _showCustomFolder = State(initialValue: UserDefaults.standard.string(forKey: "desktopDataDir")?.isEmpty == false)
     }
 
     var body: some View {
@@ -92,16 +94,29 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
 
-            Section("Claude Desktop") {
-                TextField("~/Library/Application Support/Claude-Personal", text: $desktopDataDir)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11, design: .monospaced))
-                HStack {
-                    Text(desktopDirCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Browse…") { chooseDirectory() }
+            Section("Data source") {
+                Text(sourceCaption)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                if showCustomFolder {
+                    TextField("~/Library/Application Support/Claude-Personal", text: $desktopDataDir)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11, design: .monospaced))
+                    HStack {
+                        Text(overrideStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Browse…") { chooseDirectory() }
+                        Button("Cancel") {
+                            desktopDataDir = ""
+                            showCustomFolder = false
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                } else {
+                    Button("Use custom desktop folder…") { showCustomFolder = true }
+                        .buttonStyle(.borderless)
                 }
             }
             .onChange(of: desktopDataDir) { _, _ in
@@ -118,7 +133,7 @@ struct SettingsView: View {
             Section {
                 HStack {
                     Spacer()
-                    Text("Claude Tray Monitor 0.5.0 — (c) Viktor Moyseyenko, 2026")
+                    Text("Claude Tray Monitor 0.5.1 — (c) Viktor Moyseyenko, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -136,17 +151,29 @@ struct SettingsView: View {
         return available.isEmpty ? ["five_hour", "seven_day"] : available
     }
 
-    private var desktopDirCaption: String {
-        guard !desktopDataDir.isEmpty else {
-            if let resolved = DesktopSession.resolvedDirectory()?.path {
-                return "Auto-detected: \(tildize(resolved)). The desktop session cookie is read from there."
-            }
-            return "Where Claude Desktop stores its profile. Leave empty to auto-detect."
+    private var resolvedDir: String? {
+        DesktopSession.resolvedDirectory()?.path
+    }
+
+    private var sourceCaption: String {
+        if let resolved = resolvedDir {
+            return "Usage is read from your Claude Desktop session at \(tildize(resolved))."
         }
-        if let resolved = DesktopSession.resolvedDirectory()?.path, isConfiguredDir(resolved) {
-            return "Using \(tildize(resolved)). Refresh to apply."
+        return "Claude Desktop not found. Usage is read from your Claude Code login via the Keychain."
+    }
+
+    private var overrideStatus: String {
+        let raw = desktopDataDir.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else {
+            return "Leave empty to auto-detect."
         }
-        return "Custom directory not found — falling back to auto-detection."
+        if let resolved = resolvedDir, isConfiguredDir(resolved) {
+            return "Using \(tildize(resolved))."
+        }
+        if let resolved = resolvedDir {
+            return "Contents folder not found — falling back to \(tildize(resolved))."
+        }
+        return "Directory not found."
     }
 
     private func isConfiguredDir(_ resolved: String) -> Bool {
