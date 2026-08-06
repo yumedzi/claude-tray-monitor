@@ -182,7 +182,7 @@ final class StatusItemView: NSView {
     }
 
     private func formatNumber(_ value: Double) -> String {
-        "\(Int(min(value, 99).rounded()))"
+        "\(Int(value.rounded()))"
     }
 
     private func marker(for field: String) -> String {

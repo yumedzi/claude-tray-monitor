@@ -11,7 +11,7 @@ enum APIError: Error, Sendable {
 enum UsageAPI {
     static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     static let profileURL = URL(string: "https://api.anthropic.com/api/oauth/profile")!
-    static let userAgent = "claude-tray-monitor/0.5.2"
+    static let userAgent = "claude-tray-monitor/0.5.3"
 
     static let webBaseURL = URL(string: "https://claude.ai")!
     static let webUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15"
