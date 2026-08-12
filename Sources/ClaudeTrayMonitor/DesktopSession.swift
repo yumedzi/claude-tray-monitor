@@ -7,27 +7,42 @@ enum DesktopSession {
         let organizationId: String?
     }
 
-    static func fetchUsage(session: Session) async throws -> [String: Any] {
-        let organizationId = try await resolveOrganization(session: session)
+    static func fetchUsage(session: Session) async throws -> (json: [String: Any], billingType: String?) {
+        let org = try await resolveOrganization(session: session)
+        guard let organizationId = org["uuid"] as? String else {
+            throw APIError.network("no organization id")
+        }
         let json = try await UsageAPI.getWebJSON("/api/organizations/\(organizationId)/usage", sessionKey: session.sessionKey)
         guard let dict = json as? [String: Any] else {
             throw APIError.network("invalid usage response")
         }
-        return dict
+        return (dict, org["billing_type"] as? String)
     }
 
-    private static func resolveOrganization(session: Session) async throws -> String {
+    static func planLabel(forBillingType billingType: String?) -> String? {
+        guard let billingType else { return nil }
+        switch billingType {
+        case "stripe_subscription": return "Pro"
+        default: return nil
+        }
+    }
+
+    private static func resolveOrganization(session: Session) async throws -> [String: Any] {
         let json = try await UsageAPI.getWebJSON("/api/organizations", sessionKey: session.sessionKey)
         let organizations = (json as? [[String: Any]]) ?? []
+        RequestLog.write("orgs: " + organizations.map { "\($0["uuid"] ?? "?"):\($0["name"] ?? "?") billing=\($0["billing_type"] ?? "?") tier=\($0["rate_limit_tier"] ?? "?")" }.joined(separator: " | "))
         let ids = organizations.compactMap { $0["uuid"] as? String }
-        if let preferred = session.organizationId, ids.contains(preferred) {
-            return preferred
+        if let preferred = session.organizationId, ids.contains(preferred),
+           let org = organizations.first(where: { $0["uuid"] as? String == preferred }) {
+            return org
         }
-        if let first = ids.first {
-            return first
+        if let first = ids.first,
+           let org = organizations.first(where: { $0["uuid"] as? String == first }) {
+            return org
         }
-        if let preferred = session.organizationId {
-            return preferred
+        if let preferred = session.organizationId,
+           let org = organizations.first(where: { $0["uuid"] as? String == preferred }) {
+            return org
         }
         throw APIError.network("no organization found")
     }
@@ -37,9 +52,24 @@ enum DesktopSession {
     }
 
     static func runningPlanLabel() -> String? {
-        guard let pids = ProcessRunner.run("/usr/bin/pgrep", ["-f", "claude.app/Contents/MacOS/claude"], timeout: 5)?
-            .split(separator: "\n").prefix(3).map(String.init), let pid = pids.first else { return nil }
-        guard let env = ProcessRunner.run("/bin/ps", ["eww", "-p", pid], timeout: 5) else { return nil }
+        var dirs = Set<String>()
+        if let configured = configuredDirectory()?.path { dirs.insert(configured) }
+        if let resolved = resolvedDirectory()?.path { dirs.insert(resolved) }
+        guard let pids = ProcessRunner.run("/usr/bin/pgrep", ["-fi", "claude.app/Contents/MacOS/claude"], timeout: 5)?
+            .split(separator: "\n").prefix(6).map(String.init) else { return nil }
+        var firstPlan: String?
+        for pid in pids {
+            guard let env = ProcessRunner.run("/bin/ps", ["eww", "-p", pid], timeout: 5) else { continue }
+            guard let plan = planLabel(fromEnv: env) else { continue }
+            if firstPlan == nil { firstPlan = plan }
+            if !dirs.isEmpty, dirs.contains(where: { env.contains("--user-data-dir=\($0)") }) {
+                return plan
+            }
+        }
+        return firstPlan
+    }
+
+    private static func planLabel(fromEnv env: String) -> String? {
         for token in env.split(separator: " ") {
             let part = String(token)
             if part.hasPrefix("CLAUDE_CODE_SUBSCRIPTION_TYPE=") {

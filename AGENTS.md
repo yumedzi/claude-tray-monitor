@@ -33,6 +33,7 @@ macOS menu-bar app (Swift Package Manager, `LSUIElement`) that shows Claude plan
 - **Cookie decryption recipe**: key = PBKDF2-HMAC-SHA1(keychain item `Claude Safe Storage`/`Claude Key`, salt `saltysalt`, 10003 iters, 16 B) → AES-128-CBC, IV 16×`0x20`, ciphertext `v10`-prefixed; plaintext starts with 32-byte tag to skip.
 - **Desktop cookie DB locations** (in order): `$HOME/Library/Application Support/Claude-Personal` then `Claude` (older layout), probing both `Cookies` and `Default/Cookies`. Setting `desktopDataDir` overrides auto-detect.
 - **Source priority**: Claude Desktop session (fast ~2s, own rate bucket) → OAuth candidates with 401-triggered refresh → write rotated tokens back to keychain.
+- **Plan label must come from the same source as the limits.** With mixed personal + Enterprise Desktop sessions running, env-based detection (`CLAUDE_CODE_SUBSCRIPTION_TYPE` in `ps eww`) is unreliable: `pgrep -f claude.app/Contents/MacOS/claude` is case-sensitive and only matches Desktop-*spawned CLI* subprocesses, not the main `MacOS/Claude` binary, and multiple sessions' spawns can coexist. Derive the label from the org the usage was actually queried for: `/api/organizations` items carry `billing_type` (`stripe_subscription` → Pro; others → fall back to env/OAuth profile).
 - **Keychain ACL**: reading `Claude Safe Storage` may surface a one-time macOS prompt; on some macOS versions it doesn't prompt at all. Handle both silently (timeout + fallback to OAuth).
 
 ## Release flow (bump → commit → publish)

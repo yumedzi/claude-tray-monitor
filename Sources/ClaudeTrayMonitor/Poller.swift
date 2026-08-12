@@ -57,15 +57,17 @@ final class Poller {
         if let session = desktopSession {
             RequestLog.write("claude desktop session found")
             switch await fetch(claudeSession: session) {
-            case .success(let snapshot):
+            case (let .success(snapshot), let billingType):
                 var result = snapshot
-                result.planLabel = DesktopSession.runningPlanLabel() ?? TokenResolver.quickPlanLabel()
+                result.planLabel = DesktopSession.planLabel(forBillingType: billingType)
+                    ?? DesktopSession.runningPlanLabel()
+                    ?? TokenResolver.quickPlanLabel()
                 store.setSnapshot(result)
-                RequestLog.write("refresh ok via Claude Desktop session")
+                RequestLog.write("refresh ok via Claude Desktop session (plan: \(result.planLabel ?? "unknown"))")
                 return
-            case .rejected:
+            case (let .rejected, _):
                 RequestLog.write("claude desktop session rejected")
-            case .failed(let message):
+            case (let .failed(message), _):
                 desktopFailure = message
                 RequestLog.write("claude desktop session failed: \(message)")
             }
@@ -165,30 +167,30 @@ final class Poller {
         }
     }
 
-    private func fetch(claudeSession: DesktopSession.Session) async -> FetchResult {
+    private func fetch(claudeSession: DesktopSession.Session) async -> (FetchResult, billingType: String?) {
         do {
-            let usageJSON = try await DesktopSession.fetchUsage(session: claudeSession)
+            let (usageJSON, billingType) = try await DesktopSession.fetchUsage(session: claudeSession)
             var snapshot = UsageSnapshot()
             snapshot.windows = UsageParser.parseUsage(usageJSON)
-            guard !snapshot.windows.isEmpty else { return .failed("no usage data (web)") }
+            guard !snapshot.windows.isEmpty else { return (.failed("no usage data (web)"), nil) }
             snapshot.billingMode = .subscription
             snapshot.fetchedAt = Date()
             snapshot.stale = false
             snapshot.tokenSource = "Claude Desktop session"
-            return .success(snapshot)
+            return (.success(snapshot), billingType)
         } catch APIError.tokenRejected {
-            return .rejected
+            return (.rejected, nil)
         } catch APIError.rateLimited {
             RequestLog.write("rate limited 429 via Claude Desktop session")
-            return .failed("No active Claude session detected\nRate limited (429)")
+            return (.failed("No active Claude session detected\nRate limited (429)"), nil)
         } catch APIError.server(let code) {
-            return .failed("Server error \(code)")
+            return (.failed("Server error \(code)"), nil)
         } catch APIError.http(let code) {
-            return .failed("HTTP \(code)")
+            return (.failed("HTTP \(code)"), nil)
         } catch APIError.network(let message) {
-            return .failed("Network: \(message)")
+            return (.failed("Network: \(message)"), nil)
         } catch {
-            return .failed(error.localizedDescription)
+            return (.failed(error.localizedDescription), nil)
         }
     }
 
