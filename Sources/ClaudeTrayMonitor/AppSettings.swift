@@ -14,6 +14,7 @@ enum AppSettings {
             "errorThreshold": 90.0,
             "bar1Field": "five_hour",
             "bar2Field": "seven_day",
+            "showMonthlySpend": true,
             "launchAtLogin": false,
         ])
     }
@@ -58,6 +59,10 @@ enum AppSettings {
         get { UserDefaults.standard.string(forKey: "barOrientation") ?? "vertical" }
     }
 
+    static var showMonthlySpend: Bool {
+        get { UserDefaults.standard.bool(forKey: "showMonthlySpend") }
+    }
+
     static var desktopDataDir: String {
         get { UserDefaults.standard.string(forKey: "desktopDataDir") ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: "desktopDataDir") }
@@ -69,6 +74,7 @@ enum AppSettings {
         "seven_day_sonnet": "Weekly Sonnet",
         "seven_day_opus": "Weekly Opus",
         "seven_day_fable": "Weekly Fable",
+        "monthly_spend": "Monthly spend ($)",
     ]
 
     static func displayName(for field: String) -> String {

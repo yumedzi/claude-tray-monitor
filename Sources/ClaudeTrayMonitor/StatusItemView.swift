@@ -32,6 +32,15 @@ final class StatusItemView: NSView {
             overlay.fill()
         }
 
+        if let spend = snapshot.spend, Self.spendActive(snapshot: snapshot) {
+            if AppSettings.barOrientation == "horizontal" {
+                drawSpendHorizontal(spend: spend, stale: snapshot.stale)
+            } else {
+                drawSpendVertical(spend: spend, stale: snapshot.stale)
+            }
+            return
+        }
+
         let field1 = AppSettings.bar1Field
         let field2 = AppSettings.bar2Field
         let unavailable = snapshot.billingMode == .api || snapshot.tokenMissing
@@ -44,6 +53,52 @@ final class StatusItemView: NSView {
             drawHorizontal(f1: field1, p1: p1, n1: n1, f2: field2, p2: p2, n2: n2, stale: snapshot.stale)
         } else {
             drawVertical(f1: field1, p1: p1, n1: n1, f2: field2, p2: p2, n2: n2, stale: snapshot.stale)
+        }
+    }
+
+    static func spendActive(snapshot: UsageSnapshot) -> Bool {
+        guard snapshot.spend != nil else { return false }
+        return AppSettings.showMonthlySpend
+            || AppSettings.bar1Field == "monthly_spend"
+            || AppSettings.bar2Field == "monthly_spend"
+    }
+
+    static func spendVerticalWidth(used: String, limit: String) -> CGFloat {
+        let barW: CGFloat = 4
+        let leftNeed = 3 + textWidth(used) + 1 + barW / 2
+        let rightNeed = barW / 2 + 2 + textWidth(limit) + 3
+        return 2 * max(leftNeed, rightNeed)
+    }
+
+    static func textWidth(_ string: String) -> CGFloat {
+        NSAttributedString(
+            string: string,
+            attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 6.5, weight: .medium)]
+        ).size().width
+    }
+
+    private func drawSpendHorizontal(spend: SpendInfo, stale: Bool) {
+        let percent = spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
+        let leftX: CGFloat = 3
+        let rightX = bounds.width - 3
+        drawHorizontalBar(x: leftX, y: 10, width: rightX - leftX, thickness: 2.5, percent: percent, stale: stale)
+        if AppSettings.showPercentages {
+            drawText(UsageParser.formatDollarsCompact(spend.used), centeredX: bounds.width / 2, y: 0)
+            drawText(UsageParser.formatDollarsCompact(spend.limit), centeredX: bounds.width / 2, y: 14)
+        }
+    }
+
+    private func drawSpendVertical(spend: SpendInfo, stale: Bool) {
+        let percent = spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
+        let barW: CGFloat = 4
+        let barX = (bounds.width - barW) / 2
+        drawVerticalBar(x: barX, y: 1, width: barW, height: bounds.height - 2, percent: percent, stale: stale)
+        if AppSettings.showPercentages {
+            let y = (bounds.height - TextH) / 2
+            let used = UsageParser.formatDollarsCompact(spend.used)
+            let limit = UsageParser.formatDollarsCompact(spend.limit)
+            drawTextRight(used, rightX: barX - 1, y: y)
+            drawText(limit, atX: barX + barW + 2, y: y)
         }
     }
 
@@ -140,10 +195,11 @@ final class StatusItemView: NSView {
         guard let percent else { return }
         let fillWidth = CGFloat(max(0, min(1, percent / 100))) * width
         if fillWidth > 0.7 {
-            let fillRect = NSRect(x: x, y: y, width: fillWidth, height: thickness)
-            let fill = NSBezierPath(roundedRect: fillRect, xRadius: radius, yRadius: radius)
             Theme.fillColor(for: percent, stale: stale).setFill()
-            fill.fill()
+            NSGraphicsContext.current?.saveGraphicsState()
+            track.addClip()
+            NSRect(x: x, y: y, width: fillWidth, height: thickness).fill()
+            NSGraphicsContext.current?.restoreGraphicsState()
         }
     }
 

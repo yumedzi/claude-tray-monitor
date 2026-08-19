@@ -23,6 +23,7 @@ enum DesktopSession {
         guard let billingType else { return nil }
         switch billingType {
         case "stripe_subscription": return "Pro"
+        case "stripe_subscription_contracted": return "Enterprise"
         default: return nil
         }
     }
@@ -99,10 +100,14 @@ enum DesktopSession {
             dirs.append(configured)
             RequestLog.write("desktop session: using configured dir \(configured.path)")
         }
+        if let active = activeDesktopProfileDir(), !dirs.contains(where: { $0.path == active }) {
+            dirs.append(URL(fileURLWithPath: active, isDirectory: true))
+            RequestLog.write("desktop session: active profile \(active)")
+        }
         let support = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
-        for name in ["Claude-Personal", "Claude"] {
+        for name in ["Claude", "Claude-Personal"] {
             let dir = support.appendingPathComponent(name, isDirectory: true)
             if !dirs.contains(dir) {
                 dirs.append(dir)
@@ -122,6 +127,25 @@ enum DesktopSession {
             }
         }
         return dbs
+    }
+
+    private static func activeDesktopProfileDir() -> String? {
+        guard !Thread.isMainThread else { return nil }
+        guard let pids = ProcessRunner.run("/usr/bin/pgrep", ["-fi", "claude.app/Contents/MacOS/claude"], timeout: 5)?
+            .split(separator: "\n").prefix(8).map(String.init) else { return nil }
+        for pid in pids {
+            guard let env = ProcessRunner.run("/bin/ps", ["eww", "-p", pid], timeout: 5) else { continue }
+            for token in env.split(separator: " ") {
+                let part = String(token)
+                guard part.hasPrefix("--user-data-dir=") else { continue }
+                let dir = String(part.dropFirst("--user-data-dir=".count))
+                let cookies = URL(fileURLWithPath: dir, isDirectory: true).appendingPathComponent("Cookies")
+                if FileManager.default.fileExists(atPath: cookies.path) {
+                    return dir
+                }
+            }
+        }
+        return nil
     }
 
     static func resolvedDirectory() -> URL? {

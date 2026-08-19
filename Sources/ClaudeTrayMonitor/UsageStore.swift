@@ -18,7 +18,7 @@ final class UsageStore: ObservableObject {
 
     var orderedFields: [String] {
         var fields = UsageParser.preferredFieldOrder.filter { snapshot.windows[$0] != nil }
-        for key in snapshot.windows.keys where !fields.contains(key) {
+        for key in snapshot.windows.keys where !fields.contains(key) && key != "extra_usage" {
             fields.append(key)
         }
         return fields

@@ -62,12 +62,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let show = AppSettings.showPercentages
         let horizontal = AppSettings.barOrientation == "horizontal"
         let width: CGFloat
-        if show {
+        if StatusItemView.spendActive(snapshot: store.snapshot) {
+            if horizontal {
+                width = show ? 26 : 18
+            } else if show, let spend = store.snapshot.spend {
+                width = StatusItemView.spendVerticalWidth(
+                    used: UsageParser.formatDollarsCompact(spend.used),
+                    limit: UsageParser.formatDollarsCompact(spend.limit)
+                )
+            } else {
+                width = 18
+            }
+        } else if show {
             width = horizontal ? 28 : 30
         } else {
             width = horizontal ? 20 : 14
         }
         statusItem.length = width
+        if let button = statusItem.button, let view = statusView, view.frame.width != button.bounds.width {
+            view.frame = button.bounds
+        }
     }
 
     private func setupPanel() {
@@ -173,6 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func storeDidChange() {
+        updateStatusItemWidth()
         statusView?.needsDisplay = true
         statusView?.toolTip = TooltipText.make(store.snapshot)
         if panel?.isVisible == true {

@@ -73,15 +73,43 @@ struct PopoverView: View {
             Text("API-key billing is active. Rate limits are not reported for API usage.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-        } else if store.snapshot.windows.isEmpty {
+        } else if store.snapshot.windows.isEmpty && store.snapshot.spend == nil {
             Text(store.snapshot.errorMessage ?? "No data yet")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
+            if let spend = store.snapshot.spend {
+                spendSection(spend: spend)
+            }
             ForEach(store.orderedFields, id: \.self) { field in
-                row(field: field, now: now)
+                if store.snapshot.spend == nil || store.snapshot.windows[field]?.percent ?? 0 > 0 {
+                    row(field: field, now: now)
+                }
             }
         }
+    }
+
+    private func spendSection(spend: SpendInfo) -> some View {
+        let percent = spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Monthly spend").font(.callout)
+                Spacer()
+                Text(UsageParser.formatDollars(spend.used))
+                    .font(.callout.monospacedDigit())
+            }
+            bar(percent: percent, width: nil)
+            HStack {
+                Text("limit \(UsageParser.formatDollars(spend.limit))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(Int(percent.rounded()))% of limit")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     private func row(field: String, now: Date) -> some View {
@@ -102,7 +130,7 @@ struct PopoverView: View {
         }
     }
 
-    private func bar(percent: Double) -> some View {
+    private func bar(percent: Double, width: CGFloat? = 110) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3)
@@ -112,7 +140,7 @@ struct PopoverView: View {
                     .frame(width: geo.size.width * CGFloat(min(max(percent, 0), 100)) / 100)
             }
         }
-        .frame(width: 110, height: 6)
+        .frame(maxWidth: width ?? .infinity, minHeight: 6, maxHeight: 6)
     }
 
     private func color(for percent: Double) -> Color {

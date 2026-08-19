@@ -15,6 +15,7 @@ struct SettingsView: View {
     @AppStorage("bar1Field") private var bar1Field: String = "five_hour"
     @AppStorage("bar2Field") private var bar2Field: String = "seven_day"
     @AppStorage("barOrientation") private var barOrientation: String = "vertical"
+    @AppStorage("showMonthlySpend") private var showMonthlySpend: Bool = true
     @AppStorage("desktopDataDir") private var desktopDataDir: String = ""
     @State private var showCustomFolder = false
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
@@ -43,12 +44,18 @@ struct SettingsView: View {
             }
 
             Section("Tray bars") {
-                Picker("Left bar", selection: $bar1Field) {
+                Toggle("Show monthly spend instead of usage bars", isOn: $showMonthlySpend)
+                if spendAvailable {
+                    Text("Enterprise detected — Claude reports monthly spend instead of usage windows. The tray shows current spend over the monthly limit in a single column. Settings marked (subscription) apply to usage bars only.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Picker(subscriptionLabel("Left bar"), selection: $bar1Field) {
                     ForEach(fields, id: \.self) { field in
                         Text(AppSettings.displayName(for: field)).tag(field)
                     }
                 }
-                Picker("Right bar", selection: $bar2Field) {
+                Picker(subscriptionLabel("Right bar"), selection: $bar2Field) {
                     ForEach(fields, id: \.self) { field in
                         Text(AppSettings.displayName(for: field)).tag(field)
                     }
@@ -57,9 +64,10 @@ struct SettingsView: View {
                     Text("Vertical").tag("vertical")
                     Text("Horizontal").tag("horizontal")
                 }
+                .pickerStyle(.segmented)
                 Toggle("Show percentages on bars", isOn: $showPercentages)
                 if showPercentages {
-                    Toggle("Show labels (s/w) on bars", isOn: $showLabels)
+                    Toggle(subscriptionLabel("Show labels (s/w) on bars"), isOn: $showLabels)
                 }
             }
 
@@ -133,7 +141,7 @@ struct SettingsView: View {
             Section {
                 HStack {
                     Spacer()
-                    Text("Claude Tray Monitor 0.6.0 — © Viktor Moyseyenko, 2026")
+                    Text("Claude Tray Monitor 0.7.0 — © Viktor Moyseyenko, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -147,8 +155,19 @@ struct SettingsView: View {
     }
 
     private var fields: [String] {
-        let available = store.orderedFields
+        var available = store.orderedFields
+        if !available.contains("monthly_spend") {
+            available.append("monthly_spend")
+        }
         return available.isEmpty ? ["five_hour", "seven_day"] : available
+    }
+
+    private var spendAvailable: Bool {
+        store.snapshot.spend != nil
+    }
+
+    private func subscriptionLabel(_ base: String) -> String {
+        spendAvailable ? "\(base) (subscription)" : base
     }
 
     private var resolvedDir: String? {

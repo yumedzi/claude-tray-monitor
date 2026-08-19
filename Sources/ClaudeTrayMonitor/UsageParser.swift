@@ -5,6 +5,14 @@ struct UsageWindow: Sendable {
     var resetsAt: Date?
 }
 
+struct SpendInfo: Sendable {
+    var used: Double
+    var limit: Double
+    var percent: Double?
+    var currency: String?
+    var fromExtraUsage = false
+}
+
 enum BillingMode: Sendable {
     case subscription
     case api
@@ -13,6 +21,7 @@ enum BillingMode: Sendable {
 
 struct UsageSnapshot: Sendable {
     var windows: [String: UsageWindow] = [:]
+    var spend: SpendInfo?
     var planLabel: String?
     var billingMode: BillingMode = .unknown
     var fetchedAt: Date?
@@ -33,6 +42,50 @@ enum UsageParser {
             windows = mergeScopedLimits(json: json, limits: limits, into: windows)
         }
         return windows
+    }
+
+    static func parseSpend(_ json: [String: Any]) -> SpendInfo? {
+        if let spend = parseSpendObject(json["spend"] as? [String: Any]) {
+            return spend
+        }
+        return parseExtraUsage(json["extra_usage"] as? [String: Any])
+    }
+
+    private static func parseSpendObject(_ spend: [String: Any]?) -> SpendInfo? {
+        guard let spend else { return nil }
+        guard let used = moneyAmount(spend["used"] as? [String: Any]),
+              let limit = moneyAmount(spend["limit"] as? [String: Any])
+        else { return nil }
+        return SpendInfo(
+            used: used,
+            limit: limit,
+            percent: number(spend["percent"]),
+            currency: spend["currency"] as? String
+        )
+    }
+
+    private static func parseExtraUsage(_ extra: [String: Any]?) -> SpendInfo? {
+        guard let extra else { return nil }
+        let usedCredits = number(extra["used_credits"])
+        let monthlyLimit = number(extra["monthly_limit"])
+        guard let usedCredits, let monthlyLimit, monthlyLimit > 0 else { return nil }
+        let places = number(extra["decimal_places"]) ?? 0
+        let divisor = pow(10, places)
+        let used = usedCredits / divisor
+        let limit = monthlyLimit / divisor
+        return SpendInfo(
+            used: used,
+            limit: limit,
+            percent: number(extra["utilization"]),
+            currency: extra["currency"] as? String,
+            fromExtraUsage: true
+        )
+    }
+
+    private static func moneyAmount(_ amount: [String: Any]?) -> Double? {
+        guard let amount, let minor = number(amount["amount_minor"]) else { return nil }
+        let exponent = number(amount["exponent"]) ?? 0
+        return minor / pow(10, exponent)
     }
 
     static func parseProfile(_ profile: [String: Any], tokenSubscriptionType: String?) -> String? {
@@ -73,6 +126,29 @@ enum UsageParser {
         if hours >= 24 { return "\(hours / 24)d \(hours % 24)h" }
         if hours > 0 { return "\(hours)h \(minutes)m" }
         return "\(minutes)m"
+    }
+
+    static func formatDollars(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "USD"
+        formatter.locale = Locale(identifier: "en_US")
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSNumber(value: value)) ?? "$\(value)"
+    }
+
+    static func formatDollarsCompact(_ value: Double) -> String {
+        if value >= 1000 {
+            let k = value / 1000
+            return k == k.rounded() ? "$\(Int(k))k" : String(format: "$%.1fk", k)
+        }
+        if value >= 100 {
+            return "$\(Int(value.rounded()))"
+        }
+        if value == value.rounded() {
+            return "$\(Int(value))"
+        }
+        return String(format: "$%.1f", value)
     }
 
     private static func readWindows(_ json: [String: Any]) -> [String: UsageWindow] {

@@ -62,6 +62,16 @@ final class Poller {
                 result.planLabel = DesktopSession.planLabel(forBillingType: billingType)
                     ?? DesktopSession.runningPlanLabel()
                     ?? TokenResolver.quickPlanLabel()
+                if result.planLabel == "Enterprise", result.spend?.fromExtraUsage == true {
+                    result.spend = nil
+                }
+                if result.spend == nil {
+                    let probed = await spendFromCandidates()
+                    if let spend = probed.spend {
+                        result.spend = spend
+                        RequestLog.write("monthly spend via \(probed.source ?? "unknown")")
+                    }
+                }
                 store.setSnapshot(result)
                 RequestLog.write("refresh ok via Claude Desktop session (plan: \(result.planLabel ?? "unknown"))")
                 return
@@ -167,12 +177,24 @@ final class Poller {
         }
     }
 
+    private func spendFromCandidates() async -> (spend: SpendInfo?, source: String?) {
+        let candidates = await TokenResolver.candidatesAsync()
+        for candidate in candidates {
+            let (result, _) = await fetchWithRefresh(candidate)
+            if case .success(let snapshot) = result, let spend = snapshot.spend {
+                return (spend, snapshot.tokenSource ?? candidate.source)
+            }
+        }
+        return (nil, nil)
+    }
+
     private func fetch(claudeSession: DesktopSession.Session) async -> (FetchResult, billingType: String?) {
         do {
             let (usageJSON, billingType) = try await DesktopSession.fetchUsage(session: claudeSession)
             var snapshot = UsageSnapshot()
             snapshot.windows = UsageParser.parseUsage(usageJSON)
-            guard !snapshot.windows.isEmpty else { return (.failed("no usage data (web)"), nil) }
+            snapshot.spend = UsageParser.parseSpend(usageJSON)
+            guard !snapshot.windows.isEmpty || snapshot.spend != nil else { return (.failed("no usage data (web)"), nil) }
             snapshot.billingMode = .subscription
             snapshot.fetchedAt = Date()
             snapshot.stale = false
@@ -211,8 +233,12 @@ final class Poller {
             guard let usageJSON else { return .failed("no usage data") }
             var snapshot = UsageSnapshot()
             snapshot.windows = UsageParser.parseUsage(usageJSON)
+            snapshot.spend = UsageParser.parseSpend(usageJSON)
             snapshot.billingMode = .subscription
             snapshot.planLabel = UsageParser.parseProfile(profileJSON, tokenSubscriptionType: candidate.subscriptionType)
+            if snapshot.planLabel == "Enterprise", snapshot.spend?.fromExtraUsage == true {
+                snapshot.spend = nil
+            }
             snapshot.fetchedAt = Date()
             snapshot.stale = false
             snapshot.tokenSource = candidate.source
