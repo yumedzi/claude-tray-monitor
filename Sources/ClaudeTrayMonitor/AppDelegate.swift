@@ -30,6 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupPanel()
         installObservers()
 
+        poller.start()
+
         store.onChange = { [weak self] in
             self?.storeDidChange()
         }
