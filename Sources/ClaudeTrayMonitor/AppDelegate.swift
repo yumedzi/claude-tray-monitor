@@ -275,6 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         menu.addItem(check)
         menu.addItem(account)
+        menu.addItem(buildLaunchItem())
         menu.addItem(settings)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
@@ -316,6 +317,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         manage.target = self
         menu.addItem(manage)
         return menu
+    }
+
+    /// One Desktop instance per profile folder: a single item when there is one profile, a submenu otherwise.
+    private func buildLaunchItem() -> NSMenuItem {
+        let targets = launchTargets()
+        let item = NSMenuItem(title: "Launch Desktop", action: nil, keyEquivalent: "")
+        if let image = NSImage(systemSymbolName: "arrow.up.forward.app", accessibilityDescription: "Launch Desktop") {
+            image.isTemplate = true
+            item.image = image
+        }
+        if targets.count <= 1 {
+            item.action = #selector(launchDesktop(_:))
+            item.target = self
+            item.representedObject = targets.first?.dir ?? ProfileLocator.defaultProfileDir.path
+            if let target = targets.first { item.toolTip = "\(target.title)\n\(target.dir)" }
+            return item
+        }
+        let submenu = NSMenu()
+        for target in targets {
+            let entry = NSMenuItem(title: target.title, action: #selector(launchDesktop(_:)), keyEquivalent: "")
+            entry.target = self
+            entry.representedObject = target.dir
+            entry.toolTip = target.dir
+            submenu.addItem(entry)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    /// Visible profiles, labeled by the (renamed) accounts signed in there.
+    private func launchTargets() -> [(dir: String, title: String)] {
+        accounts.profiles.compactMap { profile in
+            let all = accounts.accounts.filter { $0.profile.dir == profile.dir }
+            if all.isEmpty {
+                guard !accounts.isHidden("profile:\(profile.dir)") else { return nil }
+                return (profile.dir, "\(profile.name) (signed out)")
+            }
+            let visible = all.filter { !accounts.isHidden($0.id) }
+            guard !visible.isEmpty else { return nil }
+            let names = visible.map { accounts.customName(for: $0.id) ?? $0.organization.name }
+            return (profile.dir, "\(names.joined(separator: ", ")) (\(profile.name))")
+        }
+    }
+
+    @objc private func launchDesktop(_ sender: NSMenuItem) {
+        guard let dir = sender.representedObject as? String else { return }
+        DesktopLauncher.launch(profileDir: dir)
     }
 
     private func accountItem(_ title: String, selection: AccountSelection, selected: AccountSelection) -> NSMenuItem {
