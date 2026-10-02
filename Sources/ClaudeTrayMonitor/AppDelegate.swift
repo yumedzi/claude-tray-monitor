@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panelHost: NSHostingView<PopoverView>?
     private var settingsWindow: NSWindow?
     private var lastInterval: Double = 5
+    private var lastAutoRefresh = true
 
     private let store = UsageStore()
     private let accounts = AccountStore()
@@ -23,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         AppSettings.registerDefaults()
         lastInterval = AppSettings.pollIntervalMinutes
+        lastAutoRefresh = AppSettings.autoRefresh
 
         let poller = Poller(store: store)
         self.poller = poller
@@ -177,8 +179,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func defaultsDidChange() {
         let interval = AppSettings.pollIntervalMinutes
-        if interval != lastInterval {
+        let autoRefresh = AppSettings.autoRefresh
+        if interval != lastInterval || autoRefresh != lastAutoRefresh {
             lastInterval = interval
+            lastAutoRefresh = autoRefresh
             poller?.reschedule(intervalMinutes: interval)
         }
         updateStatusItemWidth()
@@ -380,7 +384,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         accounts.syncSelection()
         accounts.reload()
-        NSApp.activate()
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        guard let window = settingsWindow else { return }
+        // An accessory (LSUIElement) app isn't frontmost, and macOS 14's cooperative
+        // NSApp.activate() can be declined — force activation and raise the window.
+        NSApp.activate(ignoringOtherApps: true)
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        window.collectionBehavior.insert(.moveToActiveSpace)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
 }

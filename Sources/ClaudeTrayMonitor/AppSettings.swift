@@ -4,6 +4,7 @@ import Combine
 enum AppSettings {
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
+            "autoRefresh": true,
             "pollIntervalMinutes": 5.0,
             "refreshOnClick": true,
             "themeMode": "system",
@@ -31,6 +32,11 @@ enum AppSettings {
         }
         selectedAccountId = AccountSelection.pinned(profileDir: dir, organizationId: nil).id
         desktopDataDir = ""
+    }
+
+    /// Off = no timer; data refreshes only on launch, tray click (if enabled) or right-click ▸ Check Now.
+    static var autoRefresh: Bool {
+        get { UserDefaults.standard.bool(forKey: "autoRefresh") }
     }
 
     static var pollIntervalMinutes: Double {

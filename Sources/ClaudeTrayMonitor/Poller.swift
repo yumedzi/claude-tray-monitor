@@ -192,6 +192,10 @@ final class Poller {
     }
 
     private func schedule(intervalMinutes: Double) {
+        guard AppSettings.autoRefresh else {
+            RequestLog.write("auto refresh off — manual refresh only")
+            return
+        }
         let interval = max(1, intervalMinutes) * 60
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in

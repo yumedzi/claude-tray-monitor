@@ -7,6 +7,7 @@ struct SettingsView: View {
     let onSelectAccount: (AccountSelection) -> Void
     var onAccountsRenamed: () -> Void = {}
 
+    @AppStorage("autoRefresh") private var autoRefresh: Bool = true
     @AppStorage("pollIntervalMinutes") private var pollIntervalMinutes: Double = 5
     @AppStorage("refreshOnClick") private var refreshOnClick: Bool = true
     @AppStorage("themeMode") private var themeMode: String = "system"
@@ -27,17 +28,24 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Polling") {
-                LabeledContent("Interval") {
-                    HStack(spacing: 10) {
-                        Slider(value: $pollIntervalMinutes, in: 1...60, step: 1)
-                        Text("\(Int(pollIntervalMinutes)) min")
-                            .monospacedDigit()
-                            .frame(width: 52, alignment: .trailing)
+                Toggle("Auto refresh", isOn: $autoRefresh)
+                if autoRefresh {
+                    LabeledContent("Interval") {
+                        HStack(spacing: 10) {
+                            Slider(value: $pollIntervalMinutes, in: 1...60, step: 1)
+                            Text("\(Int(pollIntervalMinutes)) min")
+                                .monospacedDigit()
+                                .frame(width: 52, alignment: .trailing)
+                        }
                     }
+                    Text("The app makes one network request per interval. Be kind to the API — 5–15 minutes is usually enough.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("No background requests. Usage refreshes on launch, when the tray icon is clicked (if enabled below), or via right-click ▸ Check Now.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                Text("The app makes one network request per interval. Be kind to the API — 5–15 minutes is usually enough.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 Toggle("Refresh when tray icon is clicked", isOn: $refreshOnClick)
             }
 
@@ -216,7 +224,7 @@ struct SettingsView: View {
             Section {
                 HStack {
                     Spacer()
-                    Text("Claude Tray Monitor 0.8.0 — © Viktor Moyseyenko, 2026")
+                    Text("Claude Tray Monitor 0.8.1 — © Viktor Moyseyenko, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
