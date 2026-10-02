@@ -12,6 +12,7 @@ enum TooltipText {
             return snapshot.errorMessage ?? "Claude Tray Monitor"
         }
         var text = snapshot.planLabel.map { "Claude \($0)" } ?? "Claude"
+        if let account = snapshot.accountLabel { text += " · \(account)" }
         if let spend = snapshot.spend {
             let percent = spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
             text += "\nMonthly spend: \(UsageParser.formatDollars(spend.used)) / \(UsageParser.formatDollars(spend.limit)) (\(Int(percent.rounded()))%)"

@@ -25,18 +25,40 @@ final class Poller {
         schedule(intervalMinutes: intervalMinutes)
     }
 
+    private var pendingForcedRefresh = false
+
+    /// Account selection changed: refresh now, even inside the throttle window or mid-refresh.
+    func refreshForSelectionChange() async {
+        lastRefreshAt = nil
+        if isRefreshing {
+            pendingForcedRefresh = true
+            return
+        }
+        await refresh(force: true)
+    }
+
     func refresh(force: Bool) async {
         guard !isRefreshing else { return }
         if let last = lastRefreshAt, abs(Date().timeIntervalSince(last)) < Self.minRefreshGap {
             return
         }
+        await performRefresh(force: force)
+        if pendingForcedRefresh {
+            pendingForcedRefresh = false
+            lastRefreshAt = nil
+            await performRefresh(force: true)
+        }
+    }
+
+    private func performRefresh(force: Bool) async {
         lastRefreshAt = Date()
         isRefreshing = true
         defer { isRefreshing = false }
         store.setRefreshing(true)
         defer { store.setRefreshing(false) }
 
-        RequestLog.write("refresh start (force=\(force))")
+        let selection = AccountSelection.current
+        RequestLog.write("refresh start (force=\(force), account=\(selection.id))")
         var markStale = store.snapshot
         markStale.stale = true
         store.setSnapshot(markStale)
@@ -51,33 +73,23 @@ final class Poller {
             return
         }
 
-        let desktopSession = await DesktopSession.activeSession()
+        if case let .pinned(profileDir, organizationId) = selection {
+            await refreshPinned(profileDir: profileDir, organizationId: organizationId)
+            return
+        }
+
+        let desktopSession = selection == .oauth ? nil : await DesktopSession.activeSession()
         var desktopFailure: String?
 
         if let session = desktopSession {
-            RequestLog.write("claude desktop session found")
-            switch await fetch(claudeSession: session) {
-            case (let .success(snapshot), let billingType):
-                var result = snapshot
-                result.planLabel = DesktopSession.planLabel(forBillingType: billingType)
-                    ?? DesktopSession.runningPlanLabel()
-                    ?? TokenResolver.quickPlanLabel()
-                if result.planLabel == "Enterprise", result.spend?.fromExtraUsage == true {
-                    result.spend = nil
-                }
-                if result.spend == nil {
-                    let probed = await spendFromCandidates()
-                    if let spend = probed.spend {
-                        result.spend = spend
-                        RequestLog.write("monthly spend via \(probed.source ?? "unknown")")
-                    }
-                }
-                store.setSnapshot(result)
-                RequestLog.write("refresh ok via Claude Desktop session (plan: \(result.planLabel ?? "unknown"))")
+            RequestLog.write("claude desktop session found (\(session.profileDir))")
+            switch await fetch(claudeSession: session, organizationId: nil) {
+            case .success(let snapshot):
+                await finishDesktop(snapshot)
                 return
-            case (let .rejected, _):
+            case .rejected:
                 RequestLog.write("claude desktop session rejected")
-            case (let .failed(message), _):
+            case .failed(let message):
                 desktopFailure = message
                 RequestLog.write("claude desktop session failed: \(message)")
             }
@@ -103,7 +115,11 @@ final class Poller {
             RequestLog.write("trying candidate \(candidate.source)")
             let (result, refreshed) = await fetchWithRefresh(candidate)
             switch result {
-            case .success(let snapshot):
+            case .success(var snapshot):
+                if selection == .oauth {
+                    snapshot.accountId = AccountSelection.oauthId
+                    snapshot.accountLabel = AppSettings.accountNames[AccountSelection.oauthId] ?? "Claude Code login"
+                }
                 store.setSnapshot(snapshot)
                 RequestLog.write(refreshed ? "refresh ok via \(candidate.source) (refreshed)" : "refresh ok via \(candidate.source)")
                 return
@@ -128,6 +144,51 @@ final class Poller {
         snapshot.tokenSource = nil
         store.setSnapshot(snapshot)
         RequestLog.write("refresh failed: all credentials rejected")
+    }
+
+    /// A pinned account never falls back to another login — showing the wrong account is worse than an error.
+    private func refreshPinned(profileDir: String, organizationId: String?) async {
+        let name = (profileDir as NSString).lastPathComponent
+        guard let session = await DesktopSession.session(forProfileDir: profileDir) else {
+            failPinned("Selected account unavailable\nNo Claude Desktop session in \(name)")
+            return
+        }
+        RequestLog.write("pinned desktop session \(profileDir) org=\(organizationId ?? "default")")
+        switch await fetch(claudeSession: session, organizationId: organizationId) {
+        case .success(let snapshot):
+            await finishDesktop(snapshot)
+        case .rejected:
+            failPinned("Selected account unavailable\nSession in \(name) was rejected — sign in to Claude Desktop again")
+        case .failed(let message):
+            failPinned(message)
+        }
+    }
+
+    private func failPinned(_ message: String) {
+        var snapshot = UsageSnapshot()
+        snapshot.errorMessage = message
+        snapshot.stale = true
+        store.setSnapshot(snapshot)
+        RequestLog.write("refresh failed (pinned): \(message.replacingOccurrences(of: "\n", with: " — "))")
+    }
+
+    private func finishDesktop(_ snapshot: UsageSnapshot) async {
+        var result = snapshot
+        if result.planLabel == nil {
+            result.planLabel = DesktopSession.runningPlanLabel() ?? TokenResolver.quickPlanLabel()
+        }
+        if result.planLabel == "Enterprise", result.spend?.fromExtraUsage == true {
+            result.spend = nil
+        }
+        if result.spend == nil, result.planLabel == "Enterprise" {
+            let probed = await spendFromCandidates()
+            if let spend = probed.spend {
+                result.spend = spend
+                RequestLog.write("monthly spend via \(probed.source ?? "unknown")")
+            }
+        }
+        store.setSnapshot(result)
+        RequestLog.write("refresh ok via Claude Desktop session (account: \(result.accountLabel ?? "?"), plan: \(result.planLabel ?? "unknown"))")
     }
 
     private func schedule(intervalMinutes: Double) {
@@ -188,31 +249,38 @@ final class Poller {
         return (nil, nil)
     }
 
-    private func fetch(claudeSession: DesktopSession.Session) async -> (FetchResult, billingType: String?) {
+    private func fetch(claudeSession: DesktopSession.Session, organizationId: String?) async -> FetchResult {
         do {
-            let (usageJSON, billingType) = try await DesktopSession.fetchUsage(session: claudeSession)
+            let usage = try await DesktopSession.fetchUsage(session: claudeSession, organizationId: organizationId)
             var snapshot = UsageSnapshot()
-            snapshot.windows = UsageParser.parseUsage(usageJSON)
-            snapshot.spend = UsageParser.parseSpend(usageJSON)
-            guard !snapshot.windows.isEmpty || snapshot.spend != nil else { return (.failed("no usage data (web)"), nil) }
+            snapshot.windows = UsageParser.parseUsage(usage.json)
+            snapshot.spend = UsageParser.parseSpend(usage.json)
+            guard !snapshot.windows.isEmpty || snapshot.spend != nil else { return .failed("no usage data (web)") }
             snapshot.billingMode = .subscription
+            snapshot.planLabel = DesktopSession.planLabel(forBillingType: usage.organization.billingType)
+            snapshot.accountId = AccountSelection.pinned(profileDir: claudeSession.profileDir, organizationId: usage.organization.id).id
+            snapshot.accountLabel = AccountSelection.displayName(
+                profileDir: claudeSession.profileDir,
+                organizationId: usage.organization.id,
+                fallback: usage.organization.name
+            )
             snapshot.fetchedAt = Date()
             snapshot.stale = false
-            snapshot.tokenSource = "Claude Desktop session"
-            return (.success(snapshot), billingType)
+            snapshot.tokenSource = "Claude Desktop (\((claudeSession.profileDir as NSString).lastPathComponent))"
+            return .success(snapshot)
         } catch APIError.tokenRejected {
-            return (.rejected, nil)
+            return .rejected
         } catch APIError.rateLimited {
             RequestLog.write("rate limited 429 via Claude Desktop session")
-            return (.failed("No active Claude session detected\nRate limited (429)"), nil)
+            return .failed("No active Claude session detected\nRate limited (429)")
         } catch APIError.server(let code) {
-            return (.failed("Server error \(code)"), nil)
+            return .failed("Server error \(code)")
         } catch APIError.http(let code) {
-            return (.failed("HTTP \(code)"), nil)
+            return .failed("HTTP \(code)")
         } catch APIError.network(let message) {
-            return (.failed("Network: \(message)"), nil)
+            return .failed("Network: \(message)")
         } catch {
-            return (.failed(error.localizedDescription), nil)
+            return .failed(error.localizedDescription)
         }
     }
 

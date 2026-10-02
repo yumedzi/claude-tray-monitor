@@ -152,8 +152,9 @@ struct PopoverView: View {
             HStack {
                 Text("Updated \(formattedUpdated)")
                 Spacer()
-                if let source = store.snapshot.tokenSource, !source.isEmpty {
+                if let source = footerSource {
                     Text(source).lineLimit(1).truncationMode(.middle)
+                        .help(store.snapshot.tokenSource ?? source)
                 }
             }
             Divider()
@@ -172,6 +173,13 @@ struct PopoverView: View {
         .controlSize(.small)
         .tint(.secondary)
         .foregroundStyle(.secondary)
+    }
+
+    private var footerSource: String? {
+        let snapshot = store.snapshot
+        if let account = snapshot.accountLabel, !account.isEmpty { return account }
+        if let source = snapshot.tokenSource, !source.isEmpty { return source }
+        return nil
     }
 
     private var formattedUpdated: String {

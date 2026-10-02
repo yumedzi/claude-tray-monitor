@@ -16,7 +16,21 @@ enum AppSettings {
             "bar2Field": "seven_day",
             "showMonthlySpend": true,
             "launchAtLogin": false,
+            "selectedAccountId": AccountSelection.autoId,
         ])
+        migrateLegacyDataDir()
+    }
+
+    /// 0.7.x stored a single custom desktop folder; turn it into a manual profile pinned as the account.
+    private static func migrateLegacyDataDir() {
+        let legacy = desktopDataDir.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !legacy.isEmpty else { return }
+        let dir = (legacy as NSString).expandingTildeInPath
+        if !manualProfileDirs.contains(dir) {
+            manualProfileDirs.append(dir)
+        }
+        selectedAccountId = AccountSelection.pinned(profileDir: dir, organizationId: nil).id
+        desktopDataDir = ""
     }
 
     static var pollIntervalMinutes: Double {
@@ -66,6 +80,28 @@ enum AppSettings {
     static var desktopDataDir: String {
         get { UserDefaults.standard.string(forKey: "desktopDataDir") ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: "desktopDataDir") }
+    }
+
+    static var selectedAccountId: String {
+        get { UserDefaults.standard.string(forKey: "selectedAccountId") ?? AccountSelection.autoId }
+        set { UserDefaults.standard.set(newValue, forKey: "selectedAccountId") }
+    }
+
+    static var manualProfileDirs: [String] {
+        get { UserDefaults.standard.stringArray(forKey: "manualProfileDirs") ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: "manualProfileDirs") }
+    }
+
+    /// Account ids (`AccountSelection.id`) hidden from the tray menu and the main Settings list.
+    static var hiddenAccountIds: [String] {
+        get { UserDefaults.standard.stringArray(forKey: "hiddenAccountIds") ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: "hiddenAccountIds") }
+    }
+
+    /// User-chosen display names keyed by account id; replaces the org name.
+    static var accountNames: [String: String] {
+        get { (UserDefaults.standard.dictionary(forKey: "accountNames") as? [String: String]) ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "accountNames") }
     }
 
     static let barFieldDisplayNames: [String: String] = [

@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastInterval: Double = 5
 
     private let store = UsageStore()
+    private let accounts = AccountStore()
     private var poller: Poller?
 
     private var themeObserver: NSObjectProtocol?
@@ -39,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             await poller.refresh(force: true)
         }
+        accounts.reload(force: true)
     }
 
     private func setupStatusItem() {
@@ -261,11 +263,90 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let settings = NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
+        let account = NSMenuItem(title: "Account", action: nil, keyEquivalent: "")
+        account.submenu = buildAccountMenu()
+        if let image = NSImage(systemSymbolName: "person.crop.circle", accessibilityDescription: "Account") {
+            image.isTemplate = true
+            account.image = image
+        }
         menu.addItem(check)
+        menu.addItem(account)
         menu.addItem(settings)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         return menu
+    }
+
+    private func buildAccountMenu() -> NSMenu {
+        accounts.reload()
+        let menu = NSMenu()
+        let selected = AccountSelection.current
+
+        var autoTitle = "Auto (follow Claude Desktop)"
+        if let active = accounts.activeProfileDir {
+            autoTitle = "Auto (running: \((active as NSString).lastPathComponent))"
+        }
+        menu.addItem(accountItem(autoTitle, selection: .auto, selected: selected))
+        menu.addItem(.separator())
+
+        if accounts.visibleAccounts.isEmpty {
+            let empty = NSMenuItem(title: accounts.isLoading ? "Loading accounts…" : "No Claude Desktop accounts found", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            menu.addItem(empty)
+        }
+        for account in accounts.visibleAccounts {
+            let item = accountItem(accounts.title(for: account), selection: AccountSelection(id: account.id), selected: selected)
+            item.toolTip = account.profile.dir
+            menu.addItem(item)
+        }
+        // A pinned account that is currently unavailable still shows, so the checkmark is never lost.
+        if case .pinned = selected, !accounts.visibleAccounts.contains(where: { selected.matches($0.id) }) {
+            let item = accountItem("\(accounts.label(for: selected)) (unavailable)", selection: selected, selected: selected)
+            menu.addItem(item)
+        }
+        if !accounts.isHidden(AccountSelection.oauthId) || selected == .oauth {
+            menu.addItem(accountItem(accounts.label(for: .oauth), selection: .oauth, selected: selected))
+        }
+        menu.addItem(.separator())
+        let manage = NSMenuItem(title: "Manage Accounts…", action: #selector(openSettings), keyEquivalent: "")
+        manage.target = self
+        menu.addItem(manage)
+        return menu
+    }
+
+    private func accountItem(_ title: String, selection: AccountSelection, selected: AccountSelection) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: #selector(selectAccount(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = selection.id
+        item.state = selection == selected || selected.matches(selection.id) ? .on : .off
+        return item
+    }
+
+    @objc private func selectAccount(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        applyAccountSelection(AccountSelection(id: id))
+    }
+
+    private func applyAccountSelection(_ selection: AccountSelection) {
+        guard selection != AccountSelection.current else { return }
+        accounts.select(selection)
+        Task { @MainActor [weak self] in
+            await self?.poller?.refreshForSelectionChange()
+        }
+    }
+
+    /// Apply a rename to the data already shown, without a network round-trip.
+    private func relabelSnapshot() {
+        var snapshot = store.snapshot
+        guard let id = snapshot.accountId else { return }
+        if id == AccountSelection.oauthId {
+            snapshot.accountLabel = AppSettings.accountNames[id] ?? "Claude Code login"
+        } else if let account = accounts.accounts.first(where: { $0.id == id }) {
+            snapshot.accountLabel = AppSettings.accountNames[id] ?? account.organization.name
+        } else {
+            return
+        }
+        store.setSnapshot(snapshot)
     }
 
     @objc private func checkNow() {
@@ -283,10 +364,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsWindow == nil {
             let hosting = NSHostingController(rootView: SettingsView(
                 store: store,
-                onDataDirChange: { [weak self] in
-                    Task { @MainActor [weak self] in
-                        await self?.poller?.refresh(force: true)
-                    }
+                accounts: accounts,
+                onSelectAccount: { [weak self] selection in
+                    self?.applyAccountSelection(selection)
+                },
+                onAccountsRenamed: { [weak self] in
+                    self?.relabelSnapshot()
                 }
             ))
             let window = NSWindow(contentViewController: hosting)
@@ -295,6 +378,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.isReleasedWhenClosed = false
             settingsWindow = window
         }
+        accounts.syncSelection()
+        accounts.reload()
         NSApp.activate()
         settingsWindow?.makeKeyAndOrderFront(nil)
     }

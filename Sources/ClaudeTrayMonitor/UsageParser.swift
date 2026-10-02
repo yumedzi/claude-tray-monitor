@@ -23,6 +23,9 @@ struct UsageSnapshot: Sendable {
     var windows: [String: UsageWindow] = [:]
     var spend: SpendInfo?
     var planLabel: String?
+    var accountLabel: String?
+    /// `AccountSelection.id` of the account the data came from, used to relabel after a rename.
+    var accountId: String?
     var billingMode: BillingMode = .unknown
     var fetchedAt: Date?
     var stale = false
