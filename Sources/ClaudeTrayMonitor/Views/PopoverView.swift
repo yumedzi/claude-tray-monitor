@@ -173,10 +173,10 @@ struct PopoverView: View {
         .padding(.vertical, -3)
     }
 
-    /// Light on the coloured fill (already passed), dark-ish on the empty track — visible either way.
+    /// Dark cut on the fill (already passed; fill can be near-white), faint primary on the empty track.
     private func tickColor(fraction: Double, percent: Double, strong: Bool) -> Color {
         let onFill = fraction * 100 < percent
-        return onFill ? Color.white.opacity(strong ? 0.95 : 0.7) : Color.primary.opacity(strong ? 0.8 : 0.3)
+        return onFill ? Color.black.opacity(strong ? 0.8 : 0.45) : Color.primary.opacity(strong ? 0.8 : 0.3)
     }
 
     private func paceIcon(delta: Double, help: String) -> some View {

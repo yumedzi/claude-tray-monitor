@@ -19,6 +19,8 @@ enum AppSettings {
             "showPaceMarkers": true,
             "launchAtLogin": false,
             "selectedAccountId": AccountSelection.autoId,
+            // AppKit tooltip delay in ms (system default ~1.5s) — pace tooltips should show almost at once
+            "NSInitialToolTipDelay": 150,
         ])
         migrateLegacyDataDir()
     }
