@@ -152,13 +152,13 @@ struct PopoverView: View {
                     .frame(width: geo.size.width * CGFloat(min(max(percent, 0), 100)) / 100)
                 ForEach(ticks, id: \.self) { fraction in
                     Rectangle()
-                        .fill(Color.primary.opacity(0.3))
+                        .fill(tickColor(fraction: fraction, percent: percent, strong: false))
                         .frame(width: 1)
                         .offset(x: geo.size.width * CGFloat(fraction) - 0.5)
                 }
                 if let marker {
                     Rectangle()
-                        .fill(Color.primary.opacity(0.8))
+                        .fill(tickColor(fraction: marker, percent: percent, strong: true))
                         .frame(width: 1.5)
                         .offset(x: geo.size.width * CGFloat(marker) - 0.75)
                 }
@@ -171,6 +171,12 @@ struct PopoverView: View {
         .contentShape(Rectangle())
         .help(markerHelp ?? "")
         .padding(.vertical, -3)
+    }
+
+    /// Light on the coloured fill (already passed), dark-ish on the empty track — visible either way.
+    private func tickColor(fraction: Double, percent: Double, strong: Bool) -> Color {
+        let onFill = fraction * 100 < percent
+        return onFill ? Color.white.opacity(strong ? 0.95 : 0.7) : Color.primary.opacity(strong ? 0.8 : 0.3)
     }
 
     private func paceIcon(delta: Double, help: String) -> some View {
