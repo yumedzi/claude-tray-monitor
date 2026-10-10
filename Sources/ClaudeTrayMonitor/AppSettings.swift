@@ -84,7 +84,7 @@ enum AppSettings {
         get { UserDefaults.standard.bool(forKey: "showMonthlySpend") }
     }
 
-    /// Ideal-usage ticks: day ticks on weekly bars, a single pace marker on monthly spend.
+    /// Popup-only ideal-usage ticks: day ticks on weekly bars, a single pace marker on monthly spend.
     static var showPaceMarkers: Bool {
         get { UserDefaults.standard.bool(forKey: "showPaceMarkers") }
     }

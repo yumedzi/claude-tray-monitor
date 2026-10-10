@@ -237,6 +237,25 @@ enum UsageParser {
 enum Pace {
     static let onPaceTolerance = 3.0
 
+    enum Status {
+        case ahead, onPace, under
+
+        /// SF Symbol shown next to the bar title in the popup.
+        var symbol: String {
+            switch self {
+            case .ahead: return "hare.fill"
+            case .onPace: return "checkmark.circle"
+            case .under: return "tortoise.fill"
+            }
+        }
+    }
+
+    /// `delta` in percentage points of the limit (actual − expected).
+    static func status(delta: Double) -> Status {
+        if abs(delta) < onPaceTolerance { return .onPace }
+        return delta > 0 ? .ahead : .under
+    }
+
     static func isWeekly(_ field: String) -> Bool {
         field.hasPrefix("seven_day")
     }

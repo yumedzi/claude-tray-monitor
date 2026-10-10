@@ -73,8 +73,8 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 Toggle("Show percentages on bars", isOn: $showPercentages)
-                Toggle("Show pace markers (ideal even usage)", isOn: $showPaceMarkers)
-                Text("Weekly bars get a faint tick per day (1/7 of the limit each); monthly spend gets one tick at today's ideal spend. Fill past the tick = ahead of pace.")
+                Toggle("Show pace markers in popup (ideal even usage)", isOn: $showPaceMarkers)
+                Text("In the popup, weekly bars get a faint tick per day (1/7 of the limit each); monthly spend gets one tick at today's ideal spend. Fill past the tick = ahead of pace (hare icon); behind it = under pace (tortoise).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if showPercentages {
@@ -229,7 +229,7 @@ struct SettingsView: View {
             Section {
                 HStack {
                     Spacer()
-                    Text("Claude Tray Monitor 0.10.0 — © Viktor Moyseyenko, 2026")
+                    Text("Claude Tray Monitor 0.10.1 — © Viktor Moyseyenko, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

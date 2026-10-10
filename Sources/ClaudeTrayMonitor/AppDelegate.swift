@@ -19,7 +19,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var defaultsObserver: NSObjectProtocol?
     private var globalClickMonitor: Any?
     private var escapeMonitor: Any?
-    private var paceRedrawTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -158,13 +157,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.statusView?.needsDisplay = true
-            }
-        }
-
-        // Pace markers move with time even when nothing is refreshed.
-        paceRedrawTimer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { _ in
             Task { @MainActor [weak self] in
                 self?.statusView?.needsDisplay = true
             }

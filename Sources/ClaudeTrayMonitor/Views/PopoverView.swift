@@ -94,8 +94,11 @@ struct PopoverView: View {
         let elapsed = Pace.spendElapsed(spend, now: now)
         let pace = AppSettings.showPaceMarkers
         return VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 4) {
                 Text("Monthly spend").font(.callout)
+                if pace {
+                    paceIcon(delta: percent - elapsed * 100, help: Pace.describeSpend(spend, elapsed: elapsed))
+                }
                 Spacer()
                 Text(UsageParser.formatDollars(spend.used))
                     .font(.callout.monospacedDigit())
@@ -106,7 +109,7 @@ struct PopoverView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(Int(percent.rounded()))% of limit" + (pace ? " · \(Pace.describeSpend(spend, elapsed: elapsed))" : ""))
+                Text("\(Int(percent.rounded()))% of limit")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -118,14 +121,16 @@ struct PopoverView: View {
         let window = store.snapshot.windows[field]
         let percent = window?.percent ?? 0
         let paced = AppSettings.showPaceMarkers && Pace.isWeekly(field)
-        var caption = window?.resetsAt.map { "resets in \(UsageParser.formatCountdown(resetsAt: $0, now: now))" } ?? "resets unknown"
-        if paced, let elapsed = Pace.weeklyElapsed(resetsAt: window?.resetsAt, now: now) {
-            caption += " · \(Pace.describe(actual: percent, expected: elapsed * 100))"
-        }
+        let elapsed = paced ? Pace.weeklyElapsed(resetsAt: window?.resetsAt, now: now) : nil
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(AppSettings.displayName(for: field)).font(.callout)
-                Text(caption)
+                HStack(spacing: 4) {
+                    Text(AppSettings.displayName(for: field)).font(.callout)
+                    if let elapsed {
+                        paceIcon(delta: percent - elapsed * 100, help: Pace.describe(actual: percent, expected: elapsed * 100))
+                    }
+                }
+                Text(window?.resetsAt.map { "resets in \(UsageParser.formatCountdown(resetsAt: $0, now: now))" } ?? "resets unknown")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -161,6 +166,19 @@ struct PopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 3))
         }
         .frame(maxWidth: width ?? .infinity, minHeight: 6, maxHeight: 6)
+    }
+
+    private func paceIcon(delta: Double, help: String) -> some View {
+        let status = Pace.status(delta: delta)
+        let tint: Color = switch status {
+        case .ahead: .orange
+        case .onPace: .secondary
+        case .under: .green
+        }
+        return Image(systemName: status.symbol)
+            .font(.caption2)
+            .foregroundStyle(tint)
+            .help(help)
     }
 
     private func color(for percent: Double) -> Color {

@@ -49,23 +49,11 @@ final class StatusItemView: NSView {
         let n1 = p1 == nil ? "–" : formatNumber(p1!)
         let n2 = p2 == nil ? "–" : formatNumber(p2!)
 
-        let t1 = p1 == nil ? [] : dayTicks(field: field1, snapshot: snapshot)
-        let t2 = p2 == nil ? [] : dayTicks(field: field2, snapshot: snapshot)
-
         if AppSettings.barOrientation == "horizontal" {
-            drawHorizontal(f1: field1, p1: p1, n1: n1, t1: t1, f2: field2, p2: p2, n2: n2, t2: t2, stale: snapshot.stale)
+            drawHorizontal(f1: field1, p1: p1, n1: n1, f2: field2, p2: p2, n2: n2, stale: snapshot.stale)
         } else {
-            drawVertical(f1: field1, p1: p1, n1: n1, t1: t1, f2: field2, p2: p2, n2: n2, t2: t2, stale: snapshot.stale)
+            drawVertical(f1: field1, p1: p1, n1: n1, f2: field2, p2: p2, n2: n2, stale: snapshot.stale)
         }
-    }
-
-    private func dayTicks(field: String, snapshot: UsageSnapshot) -> [Double] {
-        guard AppSettings.showPaceMarkers, Pace.isWeekly(field) else { return [] }
-        return Pace.weeklyTicks(resetsAt: snapshot.windows[field]?.resetsAt)
-    }
-
-    private func spendMarker(_ spend: SpendInfo) -> Double? {
-        AppSettings.showPaceMarkers ? Pace.spendElapsed(spend, now: Date()) : nil
     }
 
     static func spendActive(snapshot: UsageSnapshot) -> Bool {
@@ -90,10 +78,10 @@ final class StatusItemView: NSView {
     }
 
     private func drawSpendHorizontal(spend: SpendInfo, stale: Bool) {
-        let percent = Pace.spendPercent(spend)
+        let percent = spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
         let leftX: CGFloat = 3
         let rightX = bounds.width - 3
-        drawHorizontalBar(x: leftX, y: 10, width: rightX - leftX, thickness: 2.5, percent: percent, stale: stale, marker: spendMarker(spend))
+        drawHorizontalBar(x: leftX, y: 10, width: rightX - leftX, thickness: 2.5, percent: percent, stale: stale)
         if AppSettings.showPercentages {
             drawText(UsageParser.formatDollarsCompact(spend.used), centeredX: bounds.width / 2, y: 0)
             drawText(UsageParser.formatDollarsCompact(spend.limit), centeredX: bounds.width / 2, y: 14)
@@ -101,10 +89,10 @@ final class StatusItemView: NSView {
     }
 
     private func drawSpendVertical(spend: SpendInfo, stale: Bool) {
-        let percent = Pace.spendPercent(spend)
+        let percent = spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
         let barW: CGFloat = 4
         let barX = (bounds.width - barW) / 2
-        drawVerticalBar(x: barX, y: 1, width: barW, height: bounds.height - 2, percent: percent, stale: stale, marker: spendMarker(spend))
+        drawVerticalBar(x: barX, y: 1, width: barW, height: bounds.height - 2, percent: percent, stale: stale)
         if AppSettings.showPercentages {
             let y = (bounds.height - TextH) / 2
             let used = UsageParser.formatDollarsCompact(spend.used)
@@ -116,7 +104,7 @@ final class StatusItemView: NSView {
 
     // MARK: - Vertical mode: bars close together (||); numbers top corners, markers bottom corners.
 
-    private func drawVertical(f1: String, p1: Double?, n1: String, t1: [Double], f2: String, p2: Double?, n2: String, t2: [Double], stale: Bool) {
+    private func drawVertical(f1: String, p1: Double?, n1: String, f2: String, p2: Double?, n2: String, stale: Bool) {
         let show = AppSettings.showPercentages
         let barW: CGFloat = 4
         let pairGap: CGFloat = 2
@@ -133,8 +121,8 @@ final class StatusItemView: NSView {
         let markers = [marker(for: f1), marker(for: f2)]
 
         // corner labels sit outside the bars' x-range, so bars can span nearly full height
-        drawVerticalBar(x: x0, y: 1, width: barW, height: bounds.height - 2, percent: pcts[0], stale: stale, ticks: t1)
-        drawVerticalBar(x: x0 + barW + pairGap, y: 1, width: barW, height: bounds.height - 2, percent: pcts[1], stale: stale, ticks: t2)
+        drawVerticalBar(x: x0, y: 1, width: barW, height: bounds.height - 2, percent: pcts[0], stale: stale)
+        drawVerticalBar(x: x0 + barW + pairGap, y: 1, width: barW, height: bounds.height - 2, percent: pcts[1], stale: stale)
         if show {
             if AppSettings.showLabels {
                 drawText(values[0], centeredX: cxL, y: topY)
@@ -152,7 +140,7 @@ final class StatusItemView: NSView {
 
     // MARK: - Horizontal mode: 4 rows — labels top/bottom, two thin bars between, values at right edge.
 
-    private func drawHorizontal(f1: String, p1: Double?, n1: String, t1: [Double], f2: String, p2: Double?, n2: String, t2: [Double], stale: Bool) {
+    private func drawHorizontal(f1: String, p1: Double?, n1: String, f2: String, p2: Double?, n2: String, stale: Bool) {
         let show = AppSettings.showPercentages
         let leftX: CGFloat = 3
         let rightX = bounds.width - 3
@@ -163,8 +151,8 @@ final class StatusItemView: NSView {
         let botY: CGFloat = 14
         let th: CGFloat = 2.5
 
-        drawHorizontalBar(x: leftX, y: 8, width: barWidth, thickness: th, percent: p1, stale: stale, ticks: t1)
-        drawHorizontalBar(x: leftX, y: 11.5, width: barWidth, thickness: th, percent: p2, stale: stale, ticks: t2)
+        drawHorizontalBar(x: leftX, y: 8, width: barWidth, thickness: th, percent: p1, stale: stale)
+        drawHorizontalBar(x: leftX, y: 11.5, width: barWidth, thickness: th, percent: p2, stale: stale)
 
         if show {
             let m1 = marker(for: f1)
@@ -183,9 +171,7 @@ final class StatusItemView: NSView {
 
     // MARK: - Drawing primitives
 
-    /// `ticks` = faint day ticks, `marker` = stronger single pace marker; both are fractions 0…1 of the bar.
-    private func drawVerticalBar(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, percent: Double?, stale: Bool,
-                                 ticks: [Double] = [], marker: Double? = nil) {
+    private func drawVerticalBar(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, percent: Double?, stale: Bool) {
         guard width > 0, height > 0 else { return }
         let track = NSBezierPath(roundedRect: NSRect(x: x, y: y, width: width, height: height), xRadius: width / 2, yRadius: width / 2)
         Theme.trackColor.setFill()
@@ -198,14 +184,9 @@ final class StatusItemView: NSView {
             Theme.fillColor(for: percent, stale: stale).setFill()
             fill.fill()
         }
-        // vertical bars fill bottom→top
-        drawTicks(clip: track, ticks: ticks, marker: marker) { fraction, thickness in
-            NSRect(x: x, y: y + height - CGFloat(fraction) * height - thickness / 2, width: width, height: thickness)
-        }
     }
 
-    private func drawHorizontalBar(x: CGFloat, y: CGFloat, width: CGFloat, thickness: CGFloat, percent: Double?, stale: Bool,
-                                   ticks: [Double] = [], marker: Double? = nil) {
+    private func drawHorizontalBar(x: CGFloat, y: CGFloat, width: CGFloat, thickness: CGFloat, percent: Double?, stale: Bool) {
         guard width > 0, thickness > 0 else { return }
         let radius = thickness / 2
         let track = NSBezierPath(roundedRect: NSRect(x: x, y: y, width: width, height: thickness), xRadius: radius, yRadius: radius)
@@ -220,25 +201,6 @@ final class StatusItemView: NSView {
             NSRect(x: x, y: y, width: fillWidth, height: thickness).fill()
             NSGraphicsContext.current?.restoreGraphicsState()
         }
-        drawTicks(clip: track, ticks: ticks, marker: marker) { fraction, tickWidth in
-            NSRect(x: x + CGFloat(fraction) * width - tickWidth / 2, y: y, width: tickWidth, height: thickness)
-        }
-    }
-
-    private func drawTicks(clip: NSBezierPath, ticks: [Double], marker: Double?, rect: (Double, CGFloat) -> NSRect) {
-        guard !ticks.isEmpty || marker != nil else { return }
-        let ink = Theme.textColor(for: effectiveAppearance)
-        NSGraphicsContext.current?.saveGraphicsState()
-        clip.addClip()
-        ink.withAlphaComponent(0.35).setFill()
-        for fraction in ticks {
-            rect(fraction, 1).fill()
-        }
-        if let marker {
-            ink.withAlphaComponent(0.85).setFill()
-            rect(marker, 1.5).fill()
-        }
-        NSGraphicsContext.current?.restoreGraphicsState()
     }
 
     private func drawText(_ string: String, centeredX: CGFloat, y: CGFloat) {
