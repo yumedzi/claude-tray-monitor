@@ -287,21 +287,48 @@ enum Pace {
         spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
     }
 
-    /// "on pace" / "8% ahead of pace" / "9% under pace".
-    static func describe(actual: Double, expected: Double) -> String {
+    /// Icon tooltip for a weekly bar: what the icon means plus actual vs ideal.
+    static func weeklyHelp(actual: Double, expected: Double) -> String {
         let delta = actual - expected
-        if abs(delta) < onPaceTolerance { return "on pace" }
-        let amount = "\(Int(abs(delta).rounded()))%"
-        return delta > 0 ? "\(amount) ahead of pace" : "\(amount) under pace"
+        let numbers = "\(pct(actual)) used vs \(pct(expected)) ideal by now (\(signedPct(delta)))."
+        switch status(delta: delta) {
+        case .ahead: return "Ahead of pace — using faster than an even 1/7 per day; may hit the limit before reset.\n" + numbers
+        case .onPace: return "On pace — usage matches an even spread over the week.\n" + numbers
+        case .under: return "Under pace — using slower than an even spread; room to spare.\n" + numbers
+        }
     }
 
-    /// Dollar version for monthly spend: "$162 under pace".
-    static func describeSpend(_ spend: SpendInfo, elapsed: Double) -> String {
-        let expected = spend.limit * elapsed
-        let delta = spend.used - expected
-        if spend.limit <= 0 || abs(delta) / spend.limit * 100 < onPaceTolerance { return "on pace" }
-        let amount = UsageParser.formatDollarsCompact(abs(delta))
-        return delta > 0 ? "\(amount) ahead of pace" : "\(amount) under pace"
+    /// Icon tooltip for monthly spend: what the icon means plus actual vs ideal.
+    static func spendHelp(_ spend: SpendInfo, elapsed: Double) -> String {
+        let delta = spend.used - spend.limit * elapsed
+        let numbers = spendNumbers(spend, elapsed: elapsed)
+        switch status(delta: spend.limit > 0 ? delta / spend.limit * 100 : 0) {
+        case .ahead: return "Ahead of pace — spending faster than an even spread over the month.\n" + numbers
+        case .onPace: return "On pace — spend matches an even spread over the month.\n" + numbers
+        case .under: return "Under pace — spending slower than an even spread; budget to spare.\n" + numbers
+        }
+    }
+
+    /// Pace-marker tooltip: the ideal value right now and the difference.
+    static func spendMarkerHelp(_ spend: SpendInfo, elapsed: Double) -> String {
+        "Ideal by now: \(UsageParser.formatDollars(spend.limit * elapsed)) (\(pct(elapsed * 100)) of \(UsageParser.formatDollars(spend.limit))).\n"
+            + spendNumbers(spend, elapsed: elapsed)
+    }
+
+    private static func spendNumbers(_ spend: SpendInfo, elapsed: Double) -> String {
+        let ideal = spend.limit * elapsed
+        let delta = spend.used - ideal
+        let diff = "\(UsageParser.formatDollars(abs(delta))) \(delta >= 0 ? "over" : "under")"
+        return "Spent \(UsageParser.formatDollars(spend.used)) vs \(UsageParser.formatDollars(ideal)) ideal — \(diff)."
+    }
+
+    private static func pct(_ value: Double) -> String {
+        "\(Int(value.rounded()))%"
+    }
+
+    private static func signedPct(_ value: Double) -> String {
+        let rounded = Int(value.rounded())
+        return rounded > 0 ? "+\(rounded)%" : rounded < 0 ? "−\(-rounded)%" : "±0%"
     }
 
     private static func clamp(_ value: Double) -> Double {

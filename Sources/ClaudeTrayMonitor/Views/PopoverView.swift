@@ -97,13 +97,13 @@ struct PopoverView: View {
             HStack(spacing: 4) {
                 Text("Monthly spend").font(.callout)
                 if pace {
-                    paceIcon(delta: percent - elapsed * 100, help: Pace.describeSpend(spend, elapsed: elapsed))
+                    paceIcon(delta: percent - elapsed * 100, help: Pace.spendHelp(spend, elapsed: elapsed))
                 }
                 Spacer()
                 Text(UsageParser.formatDollars(spend.used))
                     .font(.callout.monospacedDigit())
             }
-            bar(percent: percent, width: nil, marker: pace ? elapsed : nil)
+            bar(percent: percent, width: nil, marker: pace ? elapsed : nil, markerHelp: Pace.spendMarkerHelp(spend, elapsed: elapsed))
             HStack {
                 Text("limit \(UsageParser.formatDollars(spend.limit))")
                     .font(.caption)
@@ -127,7 +127,7 @@ struct PopoverView: View {
                 HStack(spacing: 4) {
                     Text(AppSettings.displayName(for: field)).font(.callout)
                     if let elapsed {
-                        paceIcon(delta: percent - elapsed * 100, help: Pace.describe(actual: percent, expected: elapsed * 100))
+                        paceIcon(delta: percent - elapsed * 100, help: Pace.weeklyHelp(actual: percent, expected: elapsed * 100))
                     }
                 }
                 Text(window?.resetsAt.map { "resets in \(UsageParser.formatCountdown(resetsAt: $0, now: now))" } ?? "resets unknown")
@@ -142,7 +142,7 @@ struct PopoverView: View {
         }
     }
 
-    private func bar(percent: Double, width: CGFloat? = 110, ticks: [Double] = [], marker: Double? = nil) -> some View {
+    private func bar(percent: Double, width: CGFloat? = 110, ticks: [Double] = [], marker: Double? = nil, markerHelp: String? = nil) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3)
@@ -166,6 +166,11 @@ struct PopoverView: View {
             .clipShape(RoundedRectangle(cornerRadius: 3))
         }
         .frame(maxWidth: width ?? .infinity, minHeight: 6, maxHeight: 6)
+        // the marker itself is too thin to hover; the whole bar carries its tooltip
+        .padding(.vertical, 3)
+        .contentShape(Rectangle())
+        .help(markerHelp ?? "")
+        .padding(.vertical, -3)
     }
 
     private func paceIcon(delta: Double, help: String) -> some View {

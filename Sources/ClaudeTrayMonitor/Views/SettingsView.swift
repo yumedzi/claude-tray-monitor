@@ -229,7 +229,7 @@ struct SettingsView: View {
             Section {
                 HStack {
                     Spacer()
-                    Text("Claude Tray Monitor 0.10.1 — © Viktor Moyseyenko, 2026")
+                    Text("Claude Tray Monitor 0.10.2 — © Viktor Moyseyenko, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

@@ -135,6 +135,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.isReleasedWhenClosed = false
         panel.hidesOnDeactivate = false
         panel.isFloatingPanel = true
+        // non-activating panel: the app is usually inactive, which suppresses tooltips by default
+        panel.allowsToolTipsWhenApplicationIsInactive = true
         panel.contentView = container
 
         panelHost = host
