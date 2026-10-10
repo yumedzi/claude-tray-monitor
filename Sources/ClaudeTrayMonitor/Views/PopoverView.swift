@@ -79,7 +79,7 @@ struct PopoverView: View {
                 .foregroundStyle(.secondary)
         } else {
             if let spend = store.snapshot.spend {
-                spendSection(spend: spend)
+                spendSection(spend: spend, now: now)
             }
             ForEach(store.orderedFields, id: \.self) { field in
                 if store.snapshot.spend == nil || store.snapshot.windows[field]?.percent ?? 0 > 0 {
@@ -89,8 +89,10 @@ struct PopoverView: View {
         }
     }
 
-    private func spendSection(spend: SpendInfo) -> some View {
-        let percent = spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
+    private func spendSection(spend: SpendInfo, now: Date) -> some View {
+        let percent = Pace.spendPercent(spend)
+        let elapsed = Pace.spendElapsed(spend, now: now)
+        let pace = AppSettings.showPaceMarkers
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("Monthly spend").font(.callout)
@@ -98,13 +100,13 @@ struct PopoverView: View {
                 Text(UsageParser.formatDollars(spend.used))
                     .font(.callout.monospacedDigit())
             }
-            bar(percent: percent, width: nil)
+            bar(percent: percent, width: nil, marker: pace ? elapsed : nil)
             HStack {
                 Text("limit \(UsageParser.formatDollars(spend.limit))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(Int(percent.rounded()))% of limit")
+                Text("\(Int(percent.rounded()))% of limit" + (pace ? " · \(Pace.describeSpend(spend, elapsed: elapsed))" : ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -115,22 +117,27 @@ struct PopoverView: View {
     private func row(field: String, now: Date) -> some View {
         let window = store.snapshot.windows[field]
         let percent = window?.percent ?? 0
+        let paced = AppSettings.showPaceMarkers && Pace.isWeekly(field)
+        var caption = window?.resetsAt.map { "resets in \(UsageParser.formatCountdown(resetsAt: $0, now: now))" } ?? "resets unknown"
+        if paced, let elapsed = Pace.weeklyElapsed(resetsAt: window?.resetsAt, now: now) {
+            caption += " · \(Pace.describe(actual: percent, expected: elapsed * 100))"
+        }
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(AppSettings.displayName(for: field)).font(.callout)
-                Text(window?.resetsAt.map { "resets in \(UsageParser.formatCountdown(resetsAt: $0, now: now))" } ?? "resets unknown")
+                Text(caption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            bar(percent: percent)
+            bar(percent: percent, ticks: paced ? Pace.weeklyTicks(resetsAt: window?.resetsAt) : [])
             Text("\(Int(percent.rounded()))%")
                 .font(.callout.monospacedDigit())
                 .frame(width: 38, alignment: .trailing)
         }
     }
 
-    private func bar(percent: Double, width: CGFloat? = 110) -> some View {
+    private func bar(percent: Double, width: CGFloat? = 110, ticks: [Double] = [], marker: Double? = nil) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3)
@@ -138,7 +145,20 @@ struct PopoverView: View {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(color(for: percent))
                     .frame(width: geo.size.width * CGFloat(min(max(percent, 0), 100)) / 100)
+                ForEach(ticks, id: \.self) { fraction in
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.3))
+                        .frame(width: 1)
+                        .offset(x: geo.size.width * CGFloat(fraction) - 0.5)
+                }
+                if let marker {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.8))
+                        .frame(width: 1.5)
+                        .offset(x: geo.size.width * CGFloat(marker) - 0.75)
+                }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 3))
         }
         .frame(maxWidth: width ?? .infinity, minHeight: 6, maxHeight: 6)
     }

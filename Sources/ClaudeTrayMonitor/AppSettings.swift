@@ -16,6 +16,7 @@ enum AppSettings {
             "bar1Field": "five_hour",
             "bar2Field": "seven_day",
             "showMonthlySpend": true,
+            "showPaceMarkers": true,
             "launchAtLogin": false,
             "selectedAccountId": AccountSelection.autoId,
         ])
@@ -81,6 +82,11 @@ enum AppSettings {
 
     static var showMonthlySpend: Bool {
         get { UserDefaults.standard.bool(forKey: "showMonthlySpend") }
+    }
+
+    /// Ideal-usage ticks: day ticks on weekly bars, a single pace marker on monthly spend.
+    static var showPaceMarkers: Bool {
+        get { UserDefaults.standard.bool(forKey: "showPaceMarkers") }
     }
 
     static var desktopDataDir: String {

@@ -14,12 +14,11 @@ enum DesktopLauncher {
         }
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
-        // The default profile is the normal app: just open/activate it. Other profiles need their own instance.
-        let isDefault = profileDir == ProfileLocator.defaultProfileDir.path
-        if !isDefault {
-            config.createsNewApplicationInstance = true
-            config.arguments = ["--user-data-dir=\(profileDir)"]
-        }
+        // Always a new instance with an explicit profile, even for the default one: a plain open/activate
+        // would just front whichever instance is already running (e.g. Claude-Personal) since they share
+        // a bundle id. If this profile is already open, Electron's single-instance lock focuses it instead.
+        config.createsNewApplicationInstance = true
+        config.arguments = ["--user-data-dir=\(profileDir)"]
         RequestLog.write("launch desktop: \((profileDir as NSString).lastPathComponent)")
         NSWorkspace.shared.openApplication(at: appURL, configuration: config) { _, error in
             guard let error else { return }

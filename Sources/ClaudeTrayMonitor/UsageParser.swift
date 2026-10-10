@@ -11,6 +11,8 @@ struct SpendInfo: Sendable {
     var percent: Double?
     var currency: String?
     var fromExtraUsage = false
+    /// End of the billing period, if the API reports one; otherwise the calendar month is assumed.
+    var resetsAt: Date?
 }
 
 enum BillingMode: Sendable {
@@ -63,7 +65,8 @@ enum UsageParser {
             used: used,
             limit: limit,
             percent: number(spend["percent"]),
-            currency: spend["currency"] as? String
+            currency: spend["currency"] as? String,
+            resetsAt: periodEnd(spend)
         )
     }
 
@@ -81,8 +84,16 @@ enum UsageParser {
             limit: limit,
             percent: number(extra["utilization"]),
             currency: extra["currency"] as? String,
-            fromExtraUsage: true
+            fromExtraUsage: true,
+            resetsAt: periodEnd(extra)
         )
+    }
+
+    private static func periodEnd(_ json: [String: Any]) -> Date? {
+        for key in ["resets_at", "period_end", "current_period_end"] {
+            if let date = parseDate(json[key] as? String) { return date }
+        }
+        return nil
     }
 
     private static func moneyAmount(_ amount: [String: Any]?) -> Double? {
@@ -219,5 +230,62 @@ enum UsageParser {
             if let date = formatter.date(from: string) { return date }
         }
         return nil
+    }
+}
+/// Pace markers: where usage "should" be if the limit were spread evenly over the period.
+/// Weekly windows get day ticks (each = 1/7 of the limit); monthly spend gets a single pace marker.
+enum Pace {
+    static let onPaceTolerance = 3.0
+
+    static func isWeekly(_ field: String) -> Bool {
+        field.hasPrefix("seven_day")
+    }
+
+    /// Fraction of the window elapsed (0…1), or nil if the reset time is unknown.
+    static func weeklyElapsed(resetsAt: Date?, now: Date) -> Double? {
+        guard let resetsAt else { return nil }
+        let length: TimeInterval = 7 * 86_400
+        return clamp(1 - resetsAt.timeIntervalSince(now) / length)
+    }
+
+    /// Day-boundary ticks as fractions of the bar, aligned to the actual reset time (not midnight).
+    static func weeklyTicks(resetsAt: Date?) -> [Double] {
+        guard resetsAt != nil else { return [] }
+        return (1...6).map { Double($0) / 7 }
+    }
+
+    /// Fraction of the billing period elapsed; falls back to the local calendar month.
+    static func spendElapsed(_ spend: SpendInfo, now: Date) -> Double {
+        let calendar = Calendar.current
+        if let end = spend.resetsAt, let start = calendar.date(byAdding: .month, value: -1, to: end) {
+            return clamp(now.timeIntervalSince(start) / end.timeIntervalSince(start))
+        }
+        guard let interval = calendar.dateInterval(of: .month, for: now) else { return 0 }
+        return clamp(now.timeIntervalSince(interval.start) / interval.duration)
+    }
+
+    static func spendPercent(_ spend: SpendInfo) -> Double {
+        spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
+    }
+
+    /// "on pace" / "8% ahead of pace" / "9% under pace".
+    static func describe(actual: Double, expected: Double) -> String {
+        let delta = actual - expected
+        if abs(delta) < onPaceTolerance { return "on pace" }
+        let amount = "\(Int(abs(delta).rounded()))%"
+        return delta > 0 ? "\(amount) ahead of pace" : "\(amount) under pace"
+    }
+
+    /// Dollar version for monthly spend: "$162 under pace".
+    static func describeSpend(_ spend: SpendInfo, elapsed: Double) -> String {
+        let expected = spend.limit * elapsed
+        let delta = spend.used - expected
+        if spend.limit <= 0 || abs(delta) / spend.limit * 100 < onPaceTolerance { return "on pace" }
+        let amount = UsageParser.formatDollarsCompact(abs(delta))
+        return delta > 0 ? "\(amount) ahead of pace" : "\(amount) under pace"
+    }
+
+    private static func clamp(_ value: Double) -> Double {
+        max(0, min(1, value))
     }
 }
