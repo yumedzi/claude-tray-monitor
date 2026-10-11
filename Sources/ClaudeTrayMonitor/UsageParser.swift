@@ -287,8 +287,8 @@ enum Pace {
     /// Weekly bar tooltip: which day it is and today's budget line.
     static func weeklyBarHelp(actual: Double, elapsed: Double) -> String {
         let day = weeklyDay(elapsed: elapsed)
-        return "Day \(day) of 7 — ideal by end of today: \(pct(Double(day) / 7 * 100)) (highlighted tick).\n"
-            + "Used \(pct(actual)) vs \(pct(elapsed * 100)) ideal right now."
+        return "Day \(day)/7 · end-of-day tick \(pct(Double(day) / 7 * 100))\n"
+            + "Now: \(pct(actual)) used, \(pct(elapsed * 100)) week elapsed (\(signedPct(actual - elapsed * 100)))"
     }
 
     /// Fraction of the billing period elapsed; falls back to the local calendar month.
