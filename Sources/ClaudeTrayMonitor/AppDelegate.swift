@@ -114,7 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // the material of NSVisualEffectView is composited at window level, so its own
         // layer mask won't clip it — wrap it in a plain container whose mask clips both.
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 328, height: 200))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 358, height: 200))
         container.wantsLayer = true
         container.layer?.cornerRadius = 10
         container.layer?.masksToBounds = true
@@ -123,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         container.addSubview(effect)
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 328, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: 358, height: 200),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false

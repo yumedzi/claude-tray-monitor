@@ -16,7 +16,7 @@ struct PopoverView: View {
                 footer
             }
             .padding(14)
-            .frame(width: 300)
+            .frame(width: 330)
         }
     }
 
@@ -126,6 +126,8 @@ struct PopoverView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(AppSettings.displayName(for: field)).font(.callout)
+                        .lineLimit(1)
+                        .fixedSize()
                     if let elapsed {
                         paceIcon(delta: percent - elapsed * 100, help: Pace.weeklyHelp(actual: percent, expected: elapsed * 100))
                     }
@@ -135,26 +137,35 @@ struct PopoverView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            bar(percent: percent, ticks: paced ? Pace.weeklyTicks(resetsAt: window?.resetsAt) : [])
+            bar(
+                percent: percent,
+                ticks: paced ? Pace.weeklyTicks(resetsAt: window?.resetsAt) : [],
+                currentTick: elapsed.flatMap { Pace.currentDayTick(elapsed: $0) },
+                markerHelp: elapsed.map { Pace.weeklyBarHelp(actual: percent, elapsed: $0) }
+            )
             Text("\(Int(percent.rounded()))%")
                 .font(.callout.monospacedDigit())
                 .frame(width: 38, alignment: .trailing)
         }
     }
 
-    private func bar(percent: Double, width: CGFloat? = 110, ticks: [Double] = [], marker: Double? = nil, markerHelp: String? = nil) -> some View {
+    private func bar(percent: Double, width: CGFloat? = 110, ticks: [Double] = [], currentTick: Double? = nil,
+                     marker: Double? = nil, markerHelp: String? = nil) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(Color(nsColor: Theme.trackColor))
-                RoundedRectangle(cornerRadius: 3)
+                // plain rect clipped by the track shape below, so even a 1–3% sliver follows the rounded left end
+                Rectangle()
                     .fill(color(for: percent))
                     .frame(width: geo.size.width * CGFloat(min(max(percent, 0), 100)) / 100)
                 ForEach(ticks, id: \.self) { fraction in
+                    // the tick closing today is drawn like the spend marker so it reads at a glance
+                    let today = fraction == currentTick
                     Rectangle()
-                        .fill(tickColor(fraction: fraction, percent: percent, strong: false))
-                        .frame(width: 1)
-                        .offset(x: geo.size.width * CGFloat(fraction) - 0.5)
+                        .fill(tickColor(fraction: fraction, percent: percent, strong: today))
+                        .frame(width: today ? 2 : 1)
+                        .offset(x: geo.size.width * CGFloat(fraction) - (today ? 1 : 0.5))
                 }
                 if let marker {
                     Rectangle()
@@ -165,7 +176,8 @@ struct PopoverView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 3))
         }
-        .frame(maxWidth: width ?? .infinity, minHeight: 6, maxHeight: 6)
+        // fixed width when given, so a wider label (e.g. with the pace icon) can't squeeze the bar out of line
+        .frame(minWidth: width, maxWidth: width ?? .infinity, minHeight: 6, maxHeight: 6)
         // the marker itself is too thin to hover; the whole bar carries its tooltip
         .padding(.vertical, 3)
         .contentShape(Rectangle())

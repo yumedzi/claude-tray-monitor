@@ -273,6 +273,24 @@ enum Pace {
         return (1...6).map { Double($0) / 7 }
     }
 
+    /// 1-based day of the 7-day window we are in now.
+    static func weeklyDay(elapsed: Double) -> Int {
+        min(7, max(1, Int((elapsed * 7).rounded(.down)) + 1))
+    }
+
+    /// The tick closing the current day (today's budget line); nil on day 7 (that line is the bar's end).
+    static func currentDayTick(elapsed: Double) -> Double? {
+        let day = weeklyDay(elapsed: elapsed)
+        return day < 7 ? Double(day) / 7 : nil
+    }
+
+    /// Weekly bar tooltip: which day it is and today's budget line.
+    static func weeklyBarHelp(actual: Double, elapsed: Double) -> String {
+        let day = weeklyDay(elapsed: elapsed)
+        return "Day \(day) of 7 — ideal by end of today: \(pct(Double(day) / 7 * 100)) (highlighted tick).\n"
+            + "Used \(pct(actual)) vs \(pct(elapsed * 100)) ideal right now."
+    }
+
     /// Fraction of the billing period elapsed; falls back to the local calendar month.
     static func spendElapsed(_ spend: SpendInfo, now: Date) -> Double {
         let calendar = Calendar.current
