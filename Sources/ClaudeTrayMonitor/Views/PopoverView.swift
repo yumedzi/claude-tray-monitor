@@ -141,6 +141,7 @@ struct PopoverView: View {
                 percent: percent,
                 ticks: paced ? Pace.weeklyTicks(resetsAt: window?.resetsAt) : [],
                 currentTick: elapsed.flatMap { Pace.currentDayTick(elapsed: $0) },
+                tickLabels: paced && AppSettings.showPaceTickLabels,
                 markerHelp: elapsed.map { Pace.weeklyBarHelp(actual: percent, elapsed: $0) }
             )
             Text("\(Int(percent.rounded()))%")
@@ -150,7 +151,7 @@ struct PopoverView: View {
     }
 
     private func bar(percent: Double, width: CGFloat? = 110, ticks: [Double] = [], currentTick: Double? = nil,
-                     marker: Double? = nil, markerHelp: String? = nil) -> some View {
+                     tickLabels: Bool = false, marker: Double? = nil, markerHelp: String? = nil) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3)
@@ -178,6 +179,21 @@ struct PopoverView: View {
         }
         // fixed width when given, so a wider label (e.g. with the pace icon) can't squeeze the bar out of line
         .frame(minWidth: width, maxWidth: width ?? .infinity, minHeight: 6, maxHeight: 6)
+        // overlay, not layout: the captions hang into the row's spare space and don't shift the bar
+        .overlay(alignment: .topLeading) {
+            if tickLabels {
+                GeometryReader { geo in
+                    ForEach(ticks, id: \.self) { fraction in
+                        Text("\(Int((fraction * 100).rounded()))")
+                            .font(.system(size: 6, weight: fraction == currentTick ? .semibold : .regular).monospacedDigit())
+                            .foregroundStyle(fraction == currentTick ? Color.primary : Color.secondary.opacity(0.8))
+                            .fixedSize()
+                            .position(x: geo.size.width * CGFloat(fraction), y: geo.size.height + 5)
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+        }
         // the marker itself is too thin to hover; the whole bar carries its tooltip
         .padding(.vertical, 3)
         .contentShape(Rectangle())

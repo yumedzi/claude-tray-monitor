@@ -17,6 +17,7 @@ enum AppSettings {
             "bar2Field": "seven_day",
             "showMonthlySpend": true,
             "showPaceMarkers": true,
+            "showPaceTickLabels": false,
             "launchAtLogin": false,
             "selectedAccountId": AccountSelection.autoId,
             // AppKit tooltip delay in ms (system default ~1.5s) — pace tooltips should show almost at once
@@ -89,6 +90,11 @@ enum AppSettings {
     /// Popup-only ideal-usage ticks: day ticks on weekly bars, a single pace marker on monthly spend.
     static var showPaceMarkers: Bool {
         get { UserDefaults.standard.bool(forKey: "showPaceMarkers") }
+    }
+
+    /// Tiny % caption under each weekly day tick (popup only, needs pace markers).
+    static var showPaceTickLabels: Bool {
+        get { UserDefaults.standard.bool(forKey: "showPaceTickLabels") }
     }
 
     static var desktopDataDir: String {

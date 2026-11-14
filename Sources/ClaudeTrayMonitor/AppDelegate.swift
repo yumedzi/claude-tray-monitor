@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var defaultsObserver: NSObjectProtocol?
     private var globalClickMonitor: Any?
     private var escapeMonitor: Any?
+    /// When the outside-click monitor last hid the panel. On macOS 27 the menu bar is hosted
+    /// out of process, so a click on our own tray icon also reaches the *global* monitor:
+    /// mouseDown hid the panel and the following mouseUp reopened it at once.
+    private var lastOutsideCloseAt: Date?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -165,8 +169,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         globalClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { _ in
+            let location = NSEvent.mouseLocation
             Task { @MainActor [weak self] in
-                self?.closePanel()
+                self?.handleOutsideClick(at: location)
             }
         }
         escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -218,10 +223,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         placePanel(by: button)
     }
 
+    private func handleOutsideClick(at location: NSPoint) {
+        guard let panel, panel.isVisible else { return }
+        // a click on the tray icon itself is the toggle's job, not an outside click
+        if let frame = statusButtonScreenFrame(), frame.insetBy(dx: -2, dy: -2).contains(location) { return }
+        lastOutsideCloseAt = Date()
+        closePanel()
+    }
+
+    private func statusButtonScreenFrame() -> NSRect? {
+        guard let button = statusItem?.button, let window = button.window else { return nil }
+        return window.convertToScreen(button.convert(button.bounds, to: nil))
+    }
+
     private func handleLeftClick() {
         guard let panel, let button = statusItem?.button else { return }
+        // the same click already hid the panel via the global monitor — this is the "close" half
+        let justClosed = lastOutsideCloseAt.map { Date().timeIntervalSince($0) < 0.5 } ?? false
+        lastOutsideCloseAt = nil
         if panel.isVisible {
             panel.orderOut(nil)
+        } else if justClosed {
+            return
         } else {
             showPanel(from: button)
             if AppSettings.refreshOnClick {

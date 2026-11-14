@@ -20,6 +20,7 @@ struct SettingsView: View {
     @AppStorage("barOrientation") private var barOrientation: String = "vertical"
     @AppStorage("showMonthlySpend") private var showMonthlySpend: Bool = true
     @AppStorage("showPaceMarkers") private var showPaceMarkers: Bool = true
+    @AppStorage("showPaceTickLabels") private var showPaceTickLabels: Bool = false
     @State private var addFolderError: String?
     @State private var renamingId: String?
     @State private var renameText = ""
@@ -77,6 +78,10 @@ struct SettingsView: View {
                 Text("In the popup, weekly bars get a faint tick per day (1/7 of the limit each); monthly spend gets one tick at today's ideal spend. Fill past the tick = ahead of pace (hare icon); behind it = under pace (tortoise).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if showPaceMarkers {
+                    Toggle("Show tiny % under each day tick", isOn: $showPaceTickLabels)
+                        .padding(.leading, 18)
+                }
                 if showPercentages {
                     Toggle(subscriptionLabel("Show labels (s/w) on bars"), isOn: $showLabels)
                 }
@@ -229,7 +234,7 @@ struct SettingsView: View {
             Section {
                 HStack {
                     Spacer()
-                    Text("Claude Tray Monitor 0.10.6 — © Viktor Moyseyenko, 2026")
+                    Text("Claude Tray Monitor 0.10.7 — © Viktor Moyseyenko, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
