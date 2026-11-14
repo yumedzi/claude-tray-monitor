@@ -256,39 +256,70 @@ enum Pace {
         return delta > 0 ? .ahead : .under
     }
 
-    static func isWeekly(_ field: String) -> Bool {
-        field.hasPrefix("seven_day")
+    /// A rolling usage window split into equal budget slices (days of a week, hours of a session).
+    struct Window {
+        let length: TimeInterval
+        let slices: Int
+        let sliceName: String   // "Day" / "Hour"
+        let windowName: String  // "week" / "session"
+        /// No slice ticks — just one "ideal by now" marker with its % (the 5h session is too short to plan in slices).
+        var singleMarker = false
+
+        static let weekly = Window(length: 7 * 86_400, slices: 7, sliceName: "Day", windowName: "week")
+        static let session = Window(length: 5 * 3_600, slices: 5, sliceName: "Hour", windowName: "session", singleMarker: true)
+
+        /// Fraction of the window elapsed (0…1), or nil if the reset time is unknown.
+        func elapsed(resetsAt: Date?, now: Date) -> Double? {
+            guard let resetsAt else { return nil }
+            return Pace.clamp(1 - resetsAt.timeIntervalSince(now) / length)
+        }
+
+        /// Slice-boundary ticks as fractions of the bar, aligned to the actual reset time (not the clock).
+        func ticks(resetsAt: Date?) -> [Double] {
+            guard resetsAt != nil, !singleMarker else { return [] }
+            return (1..<slices).map { Double($0) / Double(slices) }
+        }
+
+        /// 1-based slice of the window we are in now.
+        func slice(elapsed: Double) -> Int {
+            min(slices, max(1, Int((elapsed * Double(slices)).rounded(.down)) + 1))
+        }
+
+        /// The tick closing the current slice; nil in the last slice (that line is the bar's end).
+        func currentTick(elapsed: Double) -> Double? {
+            let n = slice(elapsed: elapsed)
+            return n < slices ? Double(n) / Double(slices) : nil
+        }
+
+        /// Bar tooltip: which slice it is and its budget line.
+        func barHelp(actual: Double, elapsed: Double) -> String {
+            if singleMarker {
+                return "Ideal by now: \(Pace.pct(elapsed * 100)) (\(windowName) elapsed)\n"
+                    + "Now: \(Pace.pct(actual)) used (\(Pace.signedPct(actual - elapsed * 100)))"
+            }
+            let n = slice(elapsed: elapsed)
+            return "\(sliceName) \(n)/\(slices) · end-of-\(sliceName.lowercased()) tick \(Pace.pct(Double(n) / Double(slices) * 100))\n"
+                + "Now: \(Pace.pct(actual)) used, \(Pace.pct(elapsed * 100)) \(windowName) elapsed (\(Pace.signedPct(actual - elapsed * 100)))"
+        }
+
+        /// Icon tooltip: what the icon means plus actual vs ideal.
+        func help(actual: Double, expected: Double) -> String {
+            let delta = actual - expected
+            let numbers = "\(Pace.pct(actual)) used vs \(Pace.pct(expected)) ideal by now (\(Pace.signedPct(delta)))."
+            let per = "1/\(slices) per \(sliceName.lowercased())"
+            switch Pace.status(delta: delta) {
+            case .ahead: return "Ahead of pace — using faster than an even \(per); may hit the limit before reset.\n" + numbers
+            case .onPace: return "On pace — usage matches an even spread over the \(windowName).\n" + numbers
+            case .under: return "Under pace — using slower than an even spread; room to spare.\n" + numbers
+            }
+        }
     }
 
-    /// Fraction of the window elapsed (0…1), or nil if the reset time is unknown.
-    static func weeklyElapsed(resetsAt: Date?, now: Date) -> Double? {
-        guard let resetsAt else { return nil }
-        let length: TimeInterval = 7 * 86_400
-        return clamp(1 - resetsAt.timeIntervalSince(now) / length)
-    }
-
-    /// Day-boundary ticks as fractions of the bar, aligned to the actual reset time (not midnight).
-    static func weeklyTicks(resetsAt: Date?) -> [Double] {
-        guard resetsAt != nil else { return [] }
-        return (1...6).map { Double($0) / 7 }
-    }
-
-    /// 1-based day of the 7-day window we are in now.
-    static func weeklyDay(elapsed: Double) -> Int {
-        min(7, max(1, Int((elapsed * 7).rounded(.down)) + 1))
-    }
-
-    /// The tick closing the current day (today's budget line); nil on day 7 (that line is the bar's end).
-    static func currentDayTick(elapsed: Double) -> Double? {
-        let day = weeklyDay(elapsed: elapsed)
-        return day < 7 ? Double(day) / 7 : nil
-    }
-
-    /// Weekly bar tooltip: which day it is and today's budget line.
-    static func weeklyBarHelp(actual: Double, elapsed: Double) -> String {
-        let day = weeklyDay(elapsed: elapsed)
-        return "Day \(day)/7 · end-of-day tick \(pct(Double(day) / 7 * 100))\n"
-            + "Now: \(pct(actual)) used, \(pct(elapsed * 100)) week elapsed (\(signedPct(actual - elapsed * 100)))"
+    /// Pace window for a usage field: weekly (`seven_day*`) or the 5-hour session.
+    static func window(for field: String) -> Window? {
+        if field.hasPrefix("seven_day") { return .weekly }
+        if field == "five_hour" { return .session }
+        return nil
     }
 
     /// Fraction of the billing period elapsed; falls back to the local calendar month.
@@ -303,17 +334,6 @@ enum Pace {
 
     static func spendPercent(_ spend: SpendInfo) -> Double {
         spend.percent ?? (spend.limit > 0 ? spend.used / spend.limit * 100 : 0)
-    }
-
-    /// Icon tooltip for a weekly bar: what the icon means plus actual vs ideal.
-    static func weeklyHelp(actual: Double, expected: Double) -> String {
-        let delta = actual - expected
-        let numbers = "\(pct(actual)) used vs \(pct(expected)) ideal by now (\(signedPct(delta)))."
-        switch status(delta: delta) {
-        case .ahead: return "Ahead of pace — using faster than an even 1/7 per day; may hit the limit before reset.\n" + numbers
-        case .onPace: return "On pace — usage matches an even spread over the week.\n" + numbers
-        case .under: return "Under pace — using slower than an even spread; room to spare.\n" + numbers
-        }
     }
 
     /// Icon tooltip for monthly spend: what the icon means plus actual vs ideal.
@@ -340,16 +360,16 @@ enum Pace {
         return "Spent \(UsageParser.formatDollars(spend.used)) vs \(UsageParser.formatDollars(ideal)) ideal — \(diff)."
     }
 
-    private static func pct(_ value: Double) -> String {
+    fileprivate static func pct(_ value: Double) -> String {
         "\(Int(value.rounded()))%"
     }
 
-    private static func signedPct(_ value: Double) -> String {
+    fileprivate static func signedPct(_ value: Double) -> String {
         let rounded = Int(value.rounded())
         return rounded > 0 ? "+\(rounded)%" : rounded < 0 ? "−\(-rounded)%" : "±0%"
     }
 
-    private static func clamp(_ value: Double) -> Double {
+    fileprivate static func clamp(_ value: Double) -> Double {
         max(0, min(1, value))
     }
 }

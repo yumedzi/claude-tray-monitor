@@ -120,8 +120,9 @@ struct PopoverView: View {
     private func row(field: String, now: Date) -> some View {
         let window = store.snapshot.windows[field]
         let percent = window?.percent ?? 0
-        let paced = AppSettings.showPaceMarkers && Pace.isWeekly(field)
-        let elapsed = paced ? Pace.weeklyElapsed(resetsAt: window?.resetsAt, now: now) : nil
+        let pace = AppSettings.showPaceMarkers ? Pace.window(for: field) : nil
+        let paced = pace != nil
+        let elapsed = pace?.elapsed(resetsAt: window?.resetsAt, now: now)
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
@@ -129,7 +130,7 @@ struct PopoverView: View {
                         .lineLimit(1)
                         .fixedSize()
                     if let elapsed {
-                        paceIcon(delta: percent - elapsed * 100, help: Pace.weeklyHelp(actual: percent, expected: elapsed * 100))
+                        paceIcon(delta: percent - elapsed * 100, help: pace?.help(actual: percent, expected: elapsed * 100) ?? "")
                     }
                 }
                 Text(window?.resetsAt.map { "resets in \(UsageParser.formatCountdown(resetsAt: $0, now: now))" } ?? "resets unknown")
@@ -139,10 +140,12 @@ struct PopoverView: View {
             Spacer()
             bar(
                 percent: percent,
-                ticks: paced ? Pace.weeklyTicks(resetsAt: window?.resetsAt) : [],
-                currentTick: elapsed.flatMap { Pace.currentDayTick(elapsed: $0) },
+                ticks: pace?.ticks(resetsAt: window?.resetsAt) ?? [],
+                currentTick: pace?.singleMarker == true ? nil : elapsed.flatMap { pace?.currentTick(elapsed: $0) },
                 tickLabels: paced && AppSettings.showPaceTickLabels,
-                markerHelp: elapsed.map { Pace.weeklyBarHelp(actual: percent, elapsed: $0) }
+                marker: pace?.singleMarker == true ? elapsed : nil,
+                markerLabel: pace?.singleMarker == true,
+                markerHelp: elapsed.flatMap { pace?.barHelp(actual: percent, elapsed: $0) }
             )
             Text("\(Int(percent.rounded()))%")
                 .font(.callout.monospacedDigit())
@@ -151,7 +154,7 @@ struct PopoverView: View {
     }
 
     private func bar(percent: Double, width: CGFloat? = 110, ticks: [Double] = [], currentTick: Double? = nil,
-                     tickLabels: Bool = false, marker: Double? = nil, markerHelp: String? = nil) -> some View {
+                     tickLabels: Bool = false, marker: Double? = nil, markerLabel: Bool = false, markerHelp: String? = nil) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3)
@@ -181,24 +184,31 @@ struct PopoverView: View {
         .frame(minWidth: width, maxWidth: width ?? .infinity, minHeight: 6, maxHeight: 6)
         // overlay, not layout: the captions hang into the row's spare space and don't shift the bar
         .overlay(alignment: .topLeading) {
-            if tickLabels {
-                GeometryReader { geo in
+            GeometryReader { geo in
+                if tickLabels {
                     ForEach(ticks, id: \.self) { fraction in
-                        Text("\(Int((fraction * 100).rounded()))")
-                            .font(.system(size: 6, weight: fraction == currentTick ? .semibold : .regular).monospacedDigit())
-                            .foregroundStyle(fraction == currentTick ? Color.primary : Color.secondary.opacity(0.8))
-                            .fixedSize()
-                            .position(x: geo.size.width * CGFloat(fraction), y: geo.size.height + 5)
+                        tickLabel(fraction, strong: fraction == currentTick, width: geo.size.width, height: geo.size.height)
                     }
                 }
-                .allowsHitTesting(false)
+                if markerLabel, let marker {
+                    tickLabel(marker, strong: true, width: geo.size.width, height: geo.size.height)
+                }
             }
+            .allowsHitTesting(false)
         }
         // the marker itself is too thin to hover; the whole bar carries its tooltip
         .padding(.vertical, 3)
         .contentShape(Rectangle())
         .help(markerHelp ?? "")
         .padding(.vertical, -3)
+    }
+
+    private func tickLabel(_ fraction: Double, strong: Bool, width: CGFloat, height: CGFloat) -> some View {
+        Text("\(Int((fraction * 100).rounded()))")
+            .font(.system(size: 6, weight: strong ? .semibold : .regular).monospacedDigit())
+            .foregroundStyle(strong ? Color.primary : Color.secondary.opacity(0.8))
+            .fixedSize()
+            .position(x: width * CGFloat(fraction), y: height + 5)
     }
 
     /// Dark cut on the fill (already passed; fill can be near-white), faint primary on the empty track.
